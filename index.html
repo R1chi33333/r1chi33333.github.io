@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Richie Jin — VR Developer &amp; AI Engineer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav id="nav">
+    <a href="#hero" class="nav-logo">RJ<span class="accent">//</span></a>
+    <ul class="nav-links">
+      <li><a href="#about">ABOUT</a></li>
+      <li><a href="#projects">PROJECTS</a></li>
+      <li><a href="#experience">EXPERIENCE</a></li>
+      <li><a href="#skills">SKILLS</a></li>
+      <li><a href="#contact">CONTACT</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section id="hero">
+    <div class="hero-inner">
+      <div class="terminal-line">
+        <span class="prompt">$</span>
+        <span class="cmd"> whoami</span>
+        <span class="cursor">_</span>
+      </div>
+      <h1 class="hero-name">YUTONG <span class="accent">(RICHIE)</span> JIN</h1>
+      <p class="hero-role">VR Developer &nbsp;·&nbsp; AI Systems Engineer &nbsp;·&nbsp; ML Research</p>
+      <div class="hero-divider"></div>
+      <p class="hero-sub">Master of Engineering &nbsp;@&nbsp; University of Canterbury &nbsp;|&nbsp; Auckland, NZ</p>
+      <p class="hero-sub hero-sub--sm">C# &nbsp;·&nbsp; Unity &nbsp;·&nbsp; Python &nbsp;·&nbsp; LLM &nbsp;·&nbsp; VR</p>
+      <div class="hero-cta">
+        <a href="#projects" class="btn-primary">VIEW PROJECTS</a>
+        <a href="mailto:richiejyt@gmail.com" class="btn-secondary">CONTACT</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section id="about">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> ABOUT</h2>
+      <div class="about-grid">
+        <div class="about-text">
+          <p>
+            Master's researcher investigating how <span class="accent">identity continuity</span> in virtual AI agents
+            affects rapport, emotional connectedness, and credibility in VR environments.
+          </p>
+          <p>
+            My thesis — <em>"One Soul, Many Forms"</em> — demonstrated that agents maintaining identity continuity
+            across multiple VR games produced significantly stronger user relationships
+            (<strong>d = 1.22, p = .005</strong>) than discontinuous agents.
+          </p>
+          <p>
+            I combine Computer Science fundamentals with hands-on VR development, multi-modal AI integration,
+            and ML engineering — building systems that bridge the gap between intelligent agents and human experience.
+          </p>
+        </div>
+        <div class="about-stats">
+          <div class="stat-block">
+            <span class="stat-num accent">3</span>
+            <span class="stat-label">VR Games Built</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-num accent">26</span>
+            <span class="stat-label">Study Participants</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-num accent">95%</span>
+            <span class="stat-label">ML Model Accuracy</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-num accent">6M+</span>
+            <span class="stat-label">Records Processed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJECTS -->
+  <section id="projects">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> PROJECTS</h2>
+      <p class="section-sub">Master's Thesis: <em>Intelligent VR Games with Multi-Modal AI Agents</em></p>
+
+      <!-- Project 01 -->
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-num accent">[01]</span>
+          <h3 class="project-title">FIREBOY — VR Escape Room</h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <video controls preload="none" class="project-video">
+              <source src="videos/FireBoy1.mp4" type="video/mp4" />
+              Your browser does not support HTML5 video.
+            </video>
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Abstract animated flame character with facial features acts as an adaptive AI guide in a multi-step
+              puzzle escape room. The agent integrates <span class="accent">LLM + TTS + STT</span> for natural voice
+              interaction and provides context-aware hints based on player progress.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Unity</span>
+              <span class="tag">C#</span>
+              <span class="tag">LLM</span>
+              <span class="tag">TTS/STT</span>
+              <span class="tag">VR</span>
+              <span class="tag">Puzzle Design</span>
+            </div>
+            <ul class="project-bullets">
+              <li>Multi-step puzzle: collect 5 clues → craft potion → unlock exit</li>
+              <li>Gaze-based interaction system with adaptive hint generation</li>
+              <li>Agent embodied as abstract non-human form (flame character)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project 02 -->
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-num accent">[02]</span>
+          <h3 class="project-title">THE WORLD BEYOND — Collaborative Shooting</h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <video controls preload="none" class="project-video">
+              <source src="videos/TheWorldBeyond.mp4" type="video/mp4" />
+              Your browser does not support HTML5 video.
+            </video>
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Embodied alien agent "Oppy" from Meta's open-source sample, redesigned as a collaborative partner
+              in a UFO shooting game. Introduces <span class="accent">task dependency design</span> — the agent
+              retrieves invisible ammunition that the player cannot obtain alone, enforcing genuine collaboration.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Unity</span>
+              <span class="tag">C#</span>
+              <span class="tag">Meta XR</span>
+              <span class="tag">AI Agent</span>
+              <span class="tag">Collaborative Design</span>
+            </div>
+            <ul class="project-bullets">
+              <li>Task dependency: player depends on agent for bullet supply</li>
+              <li>Real-time feedback and encouragement system</li>
+              <li>Embodied physical presence in mixed reality environment</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project 03 -->
+      <div class="project-card">
+        <div class="project-header">
+          <span class="project-num accent">[03]</span>
+          <h3 class="project-title">WHISPERER — Voice-Only Navigation Agent</h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <video controls preload="none" class="project-video">
+              <source src="videos/Whisperer.mp4" type="video/mp4" />
+              Your browser does not support HTML5 video.
+            </video>
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              An invisible, voice-only presence guides players through a series of sequential tasks in a virtual
+              home environment. Built on Meta's Voice SDK, the agent uses
+              <span class="accent">gesture + voice combinations</span> — eliminating visual distraction to isolate
+              the effect of voice identity continuity on user trust.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Unity</span>
+              <span class="tag">C#</span>
+              <span class="tag">Meta Voice SDK</span>
+              <span class="tag">STT/TTS</span>
+              <span class="tag">Interaction Design</span>
+            </div>
+            <ul class="project-bullets">
+              <li>5 sequential tasks: vase, radio, flower, hidden object, radio off</li>
+              <li>Voice-only modality — no visual agent embodiment</li>
+              <li>Gesture-voice combination interaction system</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- EXPERIENCE -->
+  <section id="experience">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> EXPERIENCE</h2>
+      <div class="timeline">
+
+        <div class="timeline-item">
+          <div class="timeline-date">NOV 2025 – JAN 2026</div>
+          <div class="timeline-content">
+            <div class="timeline-header">
+              <span class="timeline-role">Research Assistant</span>
+              <span class="timeline-sep">&nbsp;@&nbsp;</span>
+              <span class="timeline-org accent">HITLab NZ, University of Canterbury</span>
+            </div>
+            <ul class="timeline-bullets">
+              <li>Integrated multi-modal AI models (LLM, VLM, TTS, STT) into Unity-based educational VR project</li>
+              <li>Designed full-stack architecture: Python server backend + Unity C# frontend</li>
+              <li>Created C# programming tutorials and technical documentation</li>
+            </ul>
+            <div class="timeline-tags">
+              <span class="tag">Unity</span><span class="tag">C#</span><span class="tag">Python</span><span class="tag">LLM</span><span class="tag">VR</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-date">JUN 2025 – JUL 2025</div>
+          <div class="timeline-content">
+            <div class="timeline-header">
+              <span class="timeline-role">Software Engineer Intern</span>
+              <span class="timeline-sep">&nbsp;@&nbsp;</span>
+              <span class="timeline-org accent">WEL Networks, Christchurch</span>
+            </div>
+            <ul class="timeline-bullets">
+              <li>Developed Python-based inverter compliance detection system processing <span class="accent">6M+ smart meter records</span></li>
+              <li>Implemented algorithms for Export Limit, Volt-Watt, and Volt-Var compliance detection</li>
+            </ul>
+            <div class="timeline-tags">
+              <span class="tag">Python</span><span class="tag">Data Engineering</span><span class="tag">Algorithm Design</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-date">SEP 2022 – OCT 2023</div>
+          <div class="timeline-content">
+            <div class="timeline-header">
+              <span class="timeline-role">Machine Learning Engineer</span>
+              <span class="timeline-sep">&nbsp;@&nbsp;</span>
+              <span class="timeline-org accent">SIAT, Chinese Academy of Sciences</span>
+            </div>
+            <ul class="timeline-bullets">
+              <li>Built ML pipeline for core body temperature prediction — <span class="accent">95% accuracy</span></li>
+              <li>Developed exercise fatigue detection using ECG/IMU data — <span class="accent">85.46% accuracy</span></li>
+              <li>Optimized models for edge deployment, reducing inference time by <span class="accent">40%</span></li>
+            </ul>
+            <div class="timeline-tags">
+              <span class="tag">Python</span><span class="tag">PyTorch</span><span class="tag">ECG/IMU</span><span class="tag">Edge ML</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- SKILLS -->
+  <section id="skills">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> SKILLS</h2>
+      <div class="skills-grid">
+        <div class="skill-group">
+          <span class="skill-group-label">GAME / VR</span>
+          <div class="skill-tags">
+            <span class="tag tag--hi">Unity</span>
+            <span class="tag tag--hi">C#</span>
+            <span class="tag">Meta XR SDK</span>
+            <span class="tag">VR Design</span>
+            <span class="tag">Game AI</span>
+          </div>
+        </div>
+        <div class="skill-group">
+          <span class="skill-group-label">AI / ML</span>
+          <div class="skill-tags">
+            <span class="tag tag--hi">LLM Integration</span>
+            <span class="tag tag--hi">Multi-modal AI</span>
+            <span class="tag">TTS / STT</span>
+            <span class="tag">PyTorch</span>
+            <span class="tag">Edge Inference</span>
+          </div>
+        </div>
+        <div class="skill-group">
+          <span class="skill-group-label">LANGUAGES</span>
+          <div class="skill-tags">
+            <span class="tag tag--hi">Python</span>
+            <span class="tag tag--hi">C#</span>
+            <span class="tag">Java</span>
+            <span class="tag">R</span>
+            <span class="tag">Swift</span>
+            <span class="tag">SQL</span>
+            <span class="tag">MATLAB</span>
+          </div>
+        </div>
+        <div class="skill-group">
+          <span class="skill-group-label">INFRASTRUCTURE</span>
+          <div class="skill-tags">
+            <span class="tag">Docker</span>
+            <span class="tag">Kubernetes</span>
+            <span class="tag">Linux</span>
+            <span class="tag">VMware</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EDUCATION -->
+  <section id="education">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> EDUCATION</h2>
+      <div class="edu-grid">
+        <div class="edu-card">
+          <div class="edu-year accent">2025 – 2026</div>
+          <div class="edu-degree">Master of Engineering</div>
+          <div class="edu-field">Human Interface Technology</div>
+          <div class="edu-school">University of Canterbury, NZ</div>
+          <div class="edu-gpa">GPA: <span class="accent">7.63</span></div>
+          <p class="edu-thesis">Thesis: <em>"One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents"</em></p>
+        </div>
+        <div class="edu-card">
+          <div class="edu-year accent">2017 – 2021</div>
+          <div class="edu-degree">Bachelor of Science</div>
+          <div class="edu-field">Computer Science</div>
+          <div class="edu-school">Yanbian University, China</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact">
+    <div class="container">
+      <h2 class="section-title"><span class="accent">//</span> CONTACT</h2>
+      <div class="contact-block">
+        <p class="contact-open">Open to opportunities in game development, VR/XR engineering, and AI systems.</p>
+        <div class="contact-links">
+          <a href="mailto:richiejyt@gmail.com" class="contact-item">
+            <span class="contact-label">EMAIL</span>
+            <span class="contact-val">richiejyt@gmail.com</span>
+          </a>
+          <a href="https://github.com/R1chi33333" target="_blank" rel="noopener" class="contact-item">
+            <span class="contact-label">GITHUB</span>
+            <span class="contact-val">R1chi33333</span>
+          </a>
+          <div class="contact-item no-link">
+            <span class="contact-label">LOCATION</span>
+            <span class="contact-val">Auckland, New Zealand</span>
+          </div>
+          <div class="contact-item no-link">
+            <span class="contact-label">PHONE</span>
+            <span class="contact-val">+64 027 292 2743</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <span class="accent">R1chi33333</span> · richiejyt@gmail.com · Auckland, NZ
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
