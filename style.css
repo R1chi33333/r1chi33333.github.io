@@ -182,6 +182,23 @@ ul { list-style: none; }
   color: var(--text);
 }
 
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 10px;
+}
+
+.thesis-link {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+
+.thesis-link:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
 /* ── SECTIONS ───────────────────────────────────────── */
 section {
   padding: 96px 0;
