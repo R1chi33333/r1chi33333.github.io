@@ -25,18 +25,19 @@
 
   <!-- HERO -->
   <section id="hero">
+    <canvas id="particle-canvas" aria-hidden="true"></canvas>
     <div class="hero-inner">
       <div class="terminal-line">
-        <span class="prompt">$</span>
-        <span class="cmd"> whoami</span>
+        <span class="prompt" id="hero-prompt" style="visibility:hidden">$</span>
+        <span class="cmd" id="hero-cmd"></span>
         <span class="cursor">_</span>
       </div>
-      <h1 class="hero-name">YUTONG <span class="accent">(RICHIE)</span> JIN</h1>
-      <p class="hero-role">VR Developer &nbsp;·&nbsp; AI Systems Engineer &nbsp;·&nbsp; ML Research</p>
-      <div class="hero-divider"></div>
-      <p class="hero-sub">Master of Engineering &nbsp;@&nbsp; University of Canterbury &nbsp;|&nbsp; Auckland, NZ</p>
-      <p class="hero-sub hero-sub--sm">C# &nbsp;·&nbsp; Unity &nbsp;·&nbsp; Python &nbsp;·&nbsp; LLM &nbsp;·&nbsp; VR</p>
-      <div class="hero-cta">
+      <h1 class="hero-name glitch" id="hero-name" data-text="YUTONG (RICHIE) JIN" style="opacity:0">YUTONG <span class="accent">(RICHIE)</span> JIN</h1>
+      <p class="hero-role" id="hero-role" style="opacity:0">VR Developer &nbsp;·&nbsp; AI Systems Engineer &nbsp;·&nbsp; ML Research</p>
+      <div class="hero-divider" id="hero-divider" style="opacity:0"></div>
+      <p class="hero-sub" id="hero-sub1" style="opacity:0">Master of Engineering &nbsp;@&nbsp; University of Canterbury &nbsp;|&nbsp; Auckland, NZ</p>
+      <p class="hero-sub hero-sub--sm" id="hero-sub2" style="opacity:0">C# &nbsp;·&nbsp; Unity &nbsp;·&nbsp; Python &nbsp;·&nbsp; LLM &nbsp;·&nbsp; VR</p>
+      <div class="hero-cta" id="hero-cta" style="opacity:0">
         <a href="#projects" class="btn-primary">VIEW PROJECTS</a>
         <a href="#contact" class="btn-secondary">CONTACT</a>
       </div>
@@ -46,7 +47,7 @@
   <!-- ABOUT -->
   <section id="about">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> ABOUT</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> ABOUT</h2>
       <div class="about-grid">
         <div class="about-text">
           <p>
@@ -67,20 +68,20 @@
           </p>
         </div>
         <div class="about-stats">
-          <div class="stat-block">
-            <span class="stat-num accent">3</span>
+          <div class="stat-block" data-reveal style="--reveal-delay:0ms">
+            <span class="stat-num accent" data-target="3" data-suffix="">3</span>
             <span class="stat-label">VR Games Built</span>
           </div>
-          <div class="stat-block">
-            <span class="stat-num accent">26</span>
+          <div class="stat-block" data-reveal style="--reveal-delay:100ms">
+            <span class="stat-num accent" data-target="26" data-suffix="">26</span>
             <span class="stat-label">Study Participants</span>
           </div>
-          <div class="stat-block">
-            <span class="stat-num accent">95%</span>
+          <div class="stat-block" data-reveal style="--reveal-delay:200ms">
+            <span class="stat-num accent" data-target="95" data-suffix="%">95%</span>
             <span class="stat-label">ML Model Accuracy</span>
           </div>
-          <div class="stat-block">
-            <span class="stat-num accent">6M+</span>
+          <div class="stat-block" data-reveal style="--reveal-delay:300ms">
+            <span class="stat-num accent" data-target="6" data-suffix="M+">6M+</span>
             <span class="stat-label">Records Processed</span>
           </div>
         </div>
@@ -91,11 +92,11 @@
   <!-- PROJECTS -->
   <section id="projects">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> PROJECTS</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> PROJECTS</h2>
       <p class="section-sub">Thesis: <em>Intelligent VR Games with Multi-Modal AI Agents</em> &nbsp;·&nbsp; Personal Projects</p>
 
       <!-- Project 01 -->
-      <div class="project-card">
+      <div class="project-card" data-reveal>
         <div class="project-header">
           <span class="project-num accent">[01]</span>
           <h3 class="project-title"><a href="https://github.com/R1chi33333/EscapeRoom" target="_blank" rel="noopener" class="project-title-link">FIREBOY — VR Escape Room <span class="link-arrow">↗</span></a></h3>
@@ -131,7 +132,7 @@
       </div>
 
       <!-- Project 02 -->
-      <div class="project-card">
+      <div class="project-card" data-reveal>
         <div class="project-header">
           <span class="project-num accent">[02]</span>
           <h3 class="project-title"><a href="https://github.com/R1chi33333/TheWorldBeyond" target="_blank" rel="noopener" class="project-title-link">THE WORLD BEYOND — Collaborative Shooting <span class="link-arrow">↗</span></a></h3>
@@ -166,7 +167,7 @@
       </div>
 
       <!-- Project 03 -->
-      <div class="project-card">
+      <div class="project-card" data-reveal>
         <div class="project-header">
           <span class="project-num accent">[03]</span>
           <h3 class="project-title"><a href="https://github.com/R1chi33333/Whisperer" target="_blank" rel="noopener" class="project-title-link">WHISPERER — Voice-Only Navigation Agent <span class="link-arrow">↗</span></a></h3>
@@ -202,7 +203,7 @@
       </div>
 
       <!-- Project 04 -->
-      <div class="project-card">
+      <div class="project-card" data-reveal>
         <div class="project-header">
           <span class="project-num accent">[04]</span>
           <h3 class="project-title"><a href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener" class="project-title-link">JOB HUNTER — Multi-Agent Automation Pipeline <span class="link-arrow">↗</span></a></h3>
@@ -233,16 +234,153 @@
         </div>
       </div>
 
+      <!-- Divider: SE Projects -->
+      <div class="projects-divider" data-reveal>
+        <p class="projects-divider-label">SOFTWARE ENGINEERING — PERSONAL PROJECTS</p>
+      </div>
+
+      <!-- Project 05 -->
+      <div class="project-card" data-reveal>
+        <div class="project-header">
+          <span class="project-num accent">[05]</span>
+          <h3 class="project-title"><a href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener" class="project-title-link">RAG CHATBOT — Local LLM + Vector Search <span class="link-arrow">↗</span></a></h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <img src="images/projects/rag-chatbot.png" alt="RAG Chatbot demo" class="project-img" loading="lazy" />
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Production-ready Retrieval-Augmented Generation system — upload PDF, TXT, or Markdown,
+              ask questions, get <span class="accent">streamed answers</span> from a local Ollama LLM.
+              No cloud API keys required; fully self-hosted with ChromaDB vector storage.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Python</span>
+              <span class="tag">FastAPI</span>
+              <span class="tag">ChromaDB</span>
+              <span class="tag">Ollama</span>
+              <span class="tag">RAG</span>
+              <span class="tag">Docker</span>
+            </div>
+            <ul class="project-bullets">
+              <li>Document pipeline: PDF/TXT/MD → chunking → Ollama embeddings → ChromaDB</li>
+              <li>Top-K retrieval → augmented prompt → streaming SSE response with source citation</li>
+              <li>Docker Compose full-stack deployment; pytest-asyncio test suite</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project 06 -->
+      <div class="project-card" data-reveal>
+        <div class="project-header">
+          <span class="project-num accent">[06]</span>
+          <h3 class="project-title"><a href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener" class="project-title-link">REAL-TIME OBJECT DETECTION — YOLOv8 API <span class="link-arrow">↗</span></a></h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <img src="images/projects/object-detection.gif" alt="Object Detection demo" class="project-img" loading="lazy" />
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Real-time object detection API serving <span class="accent">YOLOv8n</span> inference over REST and
+              WebSocket. Upload an image for instant bounding boxes, or stream a live camera feed for
+              continuous detection at low latency.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Python</span>
+              <span class="tag">FastAPI</span>
+              <span class="tag">YOLOv8</span>
+              <span class="tag">WebSocket</span>
+              <span class="tag">OpenCV</span>
+              <span class="tag">Docker</span>
+            </div>
+            <ul class="project-bullets">
+              <li>REST endpoint: upload image → bounding boxes + annotated JPEG response</li>
+              <li>WebSocket stream for live detection; auto hardware selection (MPS → CUDA → CPU)</li>
+              <li>80-class COCO detection via YOLOv8n with configurable confidence threshold</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project 07 -->
+      <div class="project-card" data-reveal>
+        <div class="project-header">
+          <span class="project-num accent">[07]</span>
+          <h3 class="project-title"><a href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener" class="project-title-link">STOCK ANALYTICS DASHBOARD — ML Forecasting <span class="link-arrow">↗</span></a></h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <img src="images/projects/stock-dashboard.gif" alt="Stock Dashboard demo" class="project-img" loading="lazy" />
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Interactive stock analytics platform with <span class="accent">ML price prediction</span> and
+              portfolio optimization. Pulls real-time data via Yahoo Finance, computes technical indicators,
+              and trains four ML models with time-series cross-validation.
+            </p>
+            <div class="project-tags">
+              <span class="tag">Python</span>
+              <span class="tag">Streamlit</span>
+              <span class="tag">XGBoost</span>
+              <span class="tag">Plotly</span>
+              <span class="tag">scikit-learn</span>
+              <span class="tag">pandas</span>
+            </div>
+            <ul class="project-bullets">
+              <li>4 ML models (XGBoost, Random Forest, GBM, Ridge) with time-series cross-validation</li>
+              <li>20+ engineered features: RSI, MACD, Bollinger Bands, rolling returns, Sharpe, ATR</li>
+              <li>Portfolio comparison page: normalized returns, correlation heatmap, Sharpe optimization</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project 08 -->
+      <div class="project-card" data-reveal>
+        <div class="project-header">
+          <span class="project-num accent">[08]</span>
+          <h3 class="project-title"><a href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener" class="project-title-link">SMARTBOARD — AI-Powered Project Management <span class="link-arrow">↗</span></a></h3>
+        </div>
+        <div class="project-body">
+          <div class="project-video-wrap">
+            <img src="images/projects/smartboard.gif" alt="SmartBoard demo" class="project-img" loading="lazy" />
+          </div>
+          <div class="project-info">
+            <p class="project-desc">
+              Full-stack project management platform with a dark-theme Kanban board,
+              <span class="accent">real-time WebSocket</span> collaboration, and AI task generation
+              via Ollama streaming SSE. React 18 frontend + FastAPI backend + PostgreSQL.
+            </p>
+            <div class="project-tags">
+              <span class="tag">React 18</span>
+              <span class="tag">TypeScript</span>
+              <span class="tag">FastAPI</span>
+              <span class="tag">PostgreSQL</span>
+              <span class="tag">WebSocket</span>
+              <span class="tag">Docker</span>
+            </div>
+            <ul class="project-bullets">
+              <li>Kanban drag-and-drop with real-time WebSocket sync across all connected clients</li>
+              <li>AI-generated task descriptions + project summaries via Ollama streaming SSE</li>
+              <li>JWT auth + per-user project isolation; 19-test pytest suite; GitHub Actions CI</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
     </div>
   </section>
 
   <!-- EXPERIENCE -->
   <section id="experience">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> EXPERIENCE</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> EXPERIENCE</h2>
       <div class="timeline">
 
-        <div class="timeline-item">
+        <div class="timeline-item" data-reveal>
           <div class="timeline-date">NOV 2025 – JAN 2026</div>
           <div class="timeline-content">
             <div class="timeline-header">
@@ -261,7 +399,7 @@
           </div>
         </div>
 
-        <div class="timeline-item">
+        <div class="timeline-item" data-reveal>
           <div class="timeline-date">JUN 2025 – JUL 2025</div>
           <div class="timeline-content">
             <div class="timeline-header">
@@ -279,7 +417,7 @@
           </div>
         </div>
 
-        <div class="timeline-item">
+        <div class="timeline-item" data-reveal>
           <div class="timeline-date">SEP 2022 – OCT 2023</div>
           <div class="timeline-content">
             <div class="timeline-header">
@@ -305,9 +443,9 @@
   <!-- SKILLS -->
   <section id="skills">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> SKILLS</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> SKILLS</h2>
       <div class="skills-grid">
-        <div class="skill-group">
+        <div class="skill-group" data-reveal>
           <span class="skill-group-label">GAME / VR</span>
           <div class="skill-tags">
             <span class="tag tag--hi">Unity</span>
@@ -317,7 +455,7 @@
             <span class="tag">Game AI</span>
           </div>
         </div>
-        <div class="skill-group">
+        <div class="skill-group" data-reveal>
           <span class="skill-group-label">AI / ML</span>
           <div class="skill-tags">
             <span class="tag tag--hi">LLM Integration</span>
@@ -327,7 +465,7 @@
             <span class="tag">Edge Inference</span>
           </div>
         </div>
-        <div class="skill-group">
+        <div class="skill-group" data-reveal>
           <span class="skill-group-label">LANGUAGES</span>
           <div class="skill-tags">
             <span class="tag tag--hi">Python</span>
@@ -339,7 +477,7 @@
             <span class="tag">MATLAB</span>
           </div>
         </div>
-        <div class="skill-group">
+        <div class="skill-group" data-reveal>
           <span class="skill-group-label">INFRASTRUCTURE</span>
           <div class="skill-tags">
             <span class="tag">Docker</span>
@@ -355,9 +493,9 @@
   <!-- EDUCATION -->
   <section id="education">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> EDUCATION</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> EDUCATION</h2>
       <div class="edu-grid">
-        <div class="edu-card">
+        <div class="edu-card" data-reveal>
           <div class="edu-year accent">2025 – 2026</div>
           <div class="edu-degree">Master of Engineering</div>
           <div class="edu-field">Human Interface Technology</div>
@@ -365,7 +503,7 @@
           <div class="edu-gpa">GPA: <span class="accent">7.63</span></div>
           <p class="edu-thesis">Thesis: <a href="https://doi.org/10.26021/16462" target="_blank" rel="noopener" class="thesis-link"><em>"One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents"</em></a></p>
         </div>
-        <div class="edu-card">
+        <div class="edu-card" data-reveal>
           <div class="edu-year accent">2017 – 2021</div>
           <div class="edu-degree">Bachelor of Science</div>
           <div class="edu-field">Computer Science</div>
@@ -378,7 +516,7 @@
   <!-- ROME -->
   <section id="rome">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> ROME — Chief Surveillance Officer</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> ROME — Chief Surveillance Officer</h2>
       <div class="rome-bio">
         <div class="rome-text">
           <p class="rome-desc">
@@ -419,7 +557,7 @@
   <!-- CONTACT -->
   <section id="contact">
     <div class="container">
-      <h2 class="section-title"><span class="accent">//</span> CONTACT</h2>
+      <h2 class="section-title" data-reveal><span class="accent">//</span> CONTACT</h2>
       <div class="contact-block">
         <p class="contact-open">Open to opportunities in game development, VR/XR engineering, and AI systems.</p>
         <div class="contact-links">

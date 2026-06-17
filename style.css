@@ -661,6 +661,103 @@ footer {
   letter-spacing: 0.08em;
 }
 
+/* ── PROJECT IMG (for non-video projects) ────────────── */
+.project-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #000;
+}
+
+/* ── PROJECTS DIVIDER ────────────────────────────────── */
+.projects-divider {
+  padding: 24px 0 0;
+  border-top: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.projects-divider-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+/* ── HERO CANVAS ─────────────────────────────────────── */
+#hero { position: relative; }
+
+#particle-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── SCROLL REVEAL ───────────────────────────────────── */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+[data-reveal].revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── GLITCH EFFECT ───────────────────────────────────── */
+.glitch { position: relative; }
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.glitch.is-glitching::before {
+  opacity: 1;
+  color: #ff0033;
+  animation: glitch-1 0.2s steps(2) forwards;
+}
+
+.glitch.is-glitching::after {
+  opacity: 1;
+  color: #00ffff;
+  animation: glitch-2 0.2s steps(2) forwards;
+}
+
+@keyframes glitch-1 {
+  0%   { clip-path: inset(0 0 85% 0); transform: translate(-3px, 0); }
+  50%  { clip-path: inset(40% 0 40% 0); transform: translate(3px, 0); }
+  100% { clip-path: inset(85% 0 0 0); transform: translate(-3px, 0); }
+}
+
+@keyframes glitch-2 {
+  0%   { clip-path: inset(0 0 75% 0); transform: translate(3px, 0); }
+  50%  { clip-path: inset(30% 0 50% 0); transform: translate(-3px, 0); }
+  100% { clip-path: inset(70% 0 0 0); transform: translate(3px, 0); }
+}
+
+/* ── REDUCED MOTION ──────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 1; transform: none; transition: none; }
+  .glitch::before, .glitch::after { display: none; }
+  #particle-canvas { display: none; }
+}
+
 /* ── RESPONSIVE ─────────────────────────────────────── */
 @media (max-width: 768px) {
   #nav { padding: 14px 16px; }
