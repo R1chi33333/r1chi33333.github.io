@@ -30,8 +30,19 @@ const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').mat
   const COUNT = 80;
   const MAX_DIST = 150;
   const COLOR = '#00ff41';
+  const MOUSE_R = 120;
+  const MOUSE_FORCE = 0.08;
+  const SPEED_CAP = 2.5;
   let particles = [];
   let animId;
+  let mouse = { x: -9999, y: -9999 };
+
+  hero.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+  });
+  hero.addEventListener('mouseleave', () => { mouse.x = -9999; mouse.y = -9999; });
 
   function resize() {
     canvas.width = hero.offsetWidth;
@@ -62,6 +73,17 @@ const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').mat
       if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
       if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
 
+      // Mouse repulsion
+      const pdx = p.x - mouse.x, pdy = p.y - mouse.y;
+      const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+      if (pdist < MOUSE_R && pdist > 0) {
+        const f = (1 - pdist / MOUSE_R) * MOUSE_FORCE;
+        p.vx += (pdx / pdist) * f;
+        p.vy += (pdy / pdist) * f;
+        const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (spd > SPEED_CAP) { p.vx = p.vx / spd * SPEED_CAP; p.vy = p.vy / spd * SPEED_CAP; }
+      }
+
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fillStyle = COLOR;
@@ -83,6 +105,24 @@ const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').mat
         }
       }
     }
+
+    // Mouse node connections
+    if (mouse.x > -1000) {
+      for (const p of particles) {
+        const mdx = p.x - mouse.x, mdy = p.y - mouse.y;
+        const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+        if (mdist < MAX_DIST) {
+          ctx.beginPath();
+          ctx.moveTo(mouse.x, mouse.y);
+          ctx.lineTo(p.x, p.y);
+          ctx.globalAlpha = (1 - mdist / MAX_DIST) * 0.55;
+          ctx.strokeStyle = COLOR;
+          ctx.lineWidth = 0.9;
+          ctx.stroke();
+        }
+      }
+    }
+
     ctx.globalAlpha = 1;
     animId = requestAnimationFrame(draw);
   }
@@ -255,6 +295,88 @@ function startGlitch() {
     card.addEventListener('mouseleave', () => {
       card.style.transition = 'transform 0.4s ease';
       card.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg) scale(1)';
+    });
+  });
+})();
+
+// ─── 7. Liquid Glass Shimmer ─────────────────────────────────────────────────
+(function initGlassShimmer() {
+  if (prefersReduced) return;
+  document.querySelectorAll('.btn-primary, .btn-secondary').forEach(btn => {
+    btn.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      btn.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+      btn.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100).toFixed(1) + '%');
+    });
+  });
+})();
+
+// ─── 8. Custom Cursor ────────────────────────────────────────────────────────
+(function initCursor() {
+  if (prefersReduced) return;
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+  const dot = document.getElementById('cursor-dot');
+  const ring = document.getElementById('cursor-ring');
+  if (!dot || !ring) return;
+
+  let mx = -100, my = -100, rx = -100, ry = -100;
+
+  document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+
+  function tick() {
+    dot.style.left = mx + 'px';
+    dot.style.top = my + 'px';
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(tick);
+  }
+  tick();
+
+  document.querySelectorAll('a, button, .project-card').forEach(el => {
+    el.addEventListener('mouseenter', () => document.body.classList.add('cursor-hovering'));
+    el.addEventListener('mouseleave', () => document.body.classList.remove('cursor-hovering'));
+  });
+})();
+
+// ─── 9. Cursor Spotlight ─────────────────────────────────────────────────────
+(function initSpotlight() {
+  if (prefersReduced) return;
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+  const el = document.createElement('div');
+  el.id = 'cursor-spotlight';
+  document.body.appendChild(el);
+
+  document.addEventListener('mousemove', e => {
+    el.style.background =
+      `radial-gradient(circle 420px at ${e.clientX}px ${e.clientY}px, rgba(0,255,65,0.028) 0%, transparent 70%)`;
+  });
+})();
+
+// ─── 10. Magnetic Buttons ────────────────────────────────────────────────────
+(function initMagnetic() {
+  if (prefersReduced) return;
+  if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+  const RADIUS = 90, STRENGTH = 0.28;
+
+  document.querySelectorAll('[data-magnetic]').forEach(btn => {
+    document.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const dx = e.clientX - cx, dy = e.clientY - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < RADIUS) {
+        const pull = (1 - dist / RADIUS) * STRENGTH;
+        btn.style.transform = `translate(${dx * pull}px, ${dy * pull}px)`;
+        btn.style.transition = 'transform 0.1s ease';
+      } else {
+        btn.style.transform = 'translate(0, 0)';
+        btn.style.transition = 'transform 0.5s ease';
+      }
     });
   });
 })();
