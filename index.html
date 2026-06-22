@@ -1,596 +1,979 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+  ============================================================================
+  ONE SOUL, MANY FORMS  —  Yutong "Richie" Jin
+  Light-theme cinematic portfolio with a live, interactive AI-AGENT NETWORK
+  background (canvas node-link graph). Fully self-contained, no images.
+  ----------------------------------------------------------------------------
+  Concept: One soul (Richie) → Many forms (the four roles he can take):
+    Software Engineer · Machine Learning Engineer · AI Engineer · HCI
+  The thesis ("identity continuity in AI agents") is the metaphor: one identity,
+  many embodiments. VR is only the experimental environment, not the subject.
+
+  Epic-design techniques applied:
+    • Interactive AI-agent network background (canvas, mouse + scroll reactive)
+    • 6-layer depth/parallax system (data-depth 0..5)
+    • Scroll-driven theme morph across the four forms (colour shifts)
+    • Masked line reveal + fade-rise + split text entrances
+    • Cascading project cards · sticky experience timeline
+    • Animated number counters
+    • prefers-reduced-motion + pointer:coarse fallbacks (mandatory)
+  ============================================================================
+-->
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Richie Jin — VR Developer &amp; AI Engineer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Yutong (Richie) Jin — One Soul, Many Forms</title>
+<meta name="description" content="Yutong (Richie) Jin — Software Engineer · Machine Learning Engineer · AI Engineer · HCI. One soul, many forms." />
+<meta name="author" content="Yutong (Richie) Jin" />
+<meta property="og:title" content="Yutong (Richie) Jin — One Soul, Many Forms" />
+<meta property="og:description" content="Software Engineer · ML Engineer · AI Engineer · HCI. Research on AI-agent identity continuity, production ML, multi-modal agents." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+/* ============================================================
+   0. TOKENS — light theme. Accent morphs on scroll via JS.
+   ============================================================ */
+:root{
+  --bg:        #f5f6fa;   /* soft white */
+  --bg-card:   #ffffff;
+  --ink:       #0b0e16;   /* near-black */
+  --ink-dim:   #4a5266;
+  --ink-faint: #9aa1b4;
+  --line:      rgba(11,14,22,0.10);
+  --line-soft: rgba(11,14,22,0.06);
+
+  /* live accent — JS interpolates these between the four forms */
+  --accent:    #7c4dff;          /* AI Engineer (violet) as the opening tone */
+  --accent-2:  #a78bff;
+  --accent-rgb: 124,77,255;
+
+  --form-swe:  #2f6bff;   /* Software Engineer        */
+  --form-mle:  #0ca678;   /* Machine Learning Engineer */
+  --form-aie:  #7c4dff;   /* AI Engineer              */
+  --form-hci:  #e64980;   /* HCI                      */
+
+  --maxw: 1180px;
+  --ease: cubic-bezier(.22,1,.36,1);
+}
+
+*{ margin:0; padding:0; box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Space Grotesk', system-ui, sans-serif;
+  line-height:1.6;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{ font-family:'JetBrains Mono', monospace; }
+::selection{ background:rgba(var(--accent-rgb),.18); color:var(--ink); }
+
+/* skip-to-content (visually hidden until focused) */
+.skip-link{
+  position:fixed; top:-60px; left:16px; z-index:10000;
+  background:var(--accent); color:#fff; padding:10px 18px; border-radius:8px;
+  font-weight:600; text-decoration:none; transition:top .25s var(--ease);
+}
+.skip-link:focus{ top:16px; outline:2px solid var(--ink); }
+
+/* ============================================================
+   1. INTERACTIVE AI-AGENT NETWORK BACKGROUND (fixed canvas)
+   ============================================================ */
+#net{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+#netCanvas{ width:100%; height:100%; display:block; }
+
+/* faint colour wash tying the page to the live accent */
+#aura{
+  position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(60vw 60vw at 50% 30%, rgba(var(--accent-rgb),.07), transparent 60%),
+    radial-gradient(50vw 50vw at 85% 85%, rgba(var(--accent-rgb),.05), transparent 60%);
+  transition:background .6s linear;
+}
+
+/* ============================================================
+   2. NAV
+   ============================================================ */
+nav{
+  position:fixed; top:0; left:0; right:0; z-index:1000;
+  display:flex; justify-content:space-between; align-items:center;
+  padding:18px clamp(20px,5vw,60px);
+  backdrop-filter:saturate(160%) blur(10px);
+  background:rgba(245,246,250,0.55);
+  border-bottom:1px solid transparent; transition:border-color .4s, background .4s;
+}
+nav.scrolled{ border-bottom-color:var(--line); background:rgba(245,246,250,0.78); }
+nav .brand{ font-weight:700; letter-spacing:.04em; font-size:1rem; color:var(--ink); }
+nav .brand i{ color:var(--accent); font-style:normal; transition:color .6s linear; }
+nav .links{ display:flex; gap:clamp(14px,2vw,30px); }
+nav .links a{
+  color:var(--ink-dim); text-decoration:none; font-size:.82rem; letter-spacing:.06em;
+  text-transform:uppercase; transition:color .3s;
+}
+nav .links a:hover{ color:var(--accent); }
+.nav-right{ display:flex; align-items:center; gap:clamp(14px,2vw,28px); }
+.nav-cv{
+  font-family:'JetBrains Mono', monospace; font-size:.76rem; font-weight:600; letter-spacing:.04em;
+  text-decoration:none; padding:8px 16px; border-radius:100px; background:var(--accent); color:#fff;
+  display:inline-flex; align-items:center; gap:7px; transition:transform .3s var(--ease), background .6s linear, box-shadow .3s;
+  box-shadow:0 6px 16px -8px rgba(var(--accent-rgb),.6);
+}
+.nav-cv:hover{ transform:translateY(-1px); box-shadow:0 10px 20px -8px rgba(var(--accent-rgb),.7); }
+.nav-cv i{ width:7px; height:7px; border-radius:50%; background:#fff; font-style:normal; box-shadow:0 0 0 3px rgba(255,255,255,.35); }
+@media (max-width:680px){ nav .links{ display:none; } }
+
+#progress{
+  position:fixed; top:0; left:0; height:2px; width:0%;
+  background:linear-gradient(90deg, var(--accent), var(--accent-2));
+  z-index:1001; transition:background .6s linear;
+}
+
+/* ============================================================
+   3. SCENE / DEPTH SYSTEM
+   ============================================================ */
+.scene{ position:relative; z-index:2; }
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 clamp(20px,5vw,40px); }
+
+/* act dividers — chapter signposts so a recruiter never loses the thread */
+.act-line{ display:flex; align-items:center; gap:16px; margin-bottom:1.6rem; }
+.act-line .n{ font-family:'JetBrains Mono', monospace; font-size:.9rem; font-weight:700; letter-spacing:.12em; color:var(--accent); transition:color .6s linear; }
+.act-line .t{ font-family:'JetBrains Mono', monospace; font-size:.82rem; font-weight:600; letter-spacing:.22em; text-transform:uppercase; color:var(--ink); white-space:nowrap; }
+.act-line::after{ content:""; flex:1; height:1px; background:var(--line); }
+
+.layer{ position:absolute; inset:0; pointer-events:none; }
+.depth-0{ z-index:0; } .depth-1{ z-index:1; } .depth-2{ z-index:2; } .depth-3{ z-index:3; }
+.depth-4{ position:relative; z-index:4; pointer-events:auto; }
+.depth-5{ z-index:5; }
+
+.glow-blob{
+  position:absolute; border-radius:50%; filter:blur(80px);
+  background:radial-gradient(circle, rgba(var(--accent-rgb),.22), transparent 70%);
+  opacity:.6; transition:background .6s linear;
+}
+
+/* ============================================================
+   4. TYPOGRAPHY / REVEAL PRIMITIVES
+   ============================================================ */
+.eyebrow{
+  font-family:'JetBrains Mono', monospace; font-size:.78rem; letter-spacing:.26em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:1.4rem;
+  display:inline-block; transition:color .6s linear;
+}
+.eyebrow::before{ content:"// "; color:var(--ink-faint); }
+
+h1,h2,h3{ font-weight:700; line-height:1.05; letter-spacing:-.02em; color:var(--ink); }
+h2.section-title{ font-size:clamp(2.2rem,6vw,4.2rem); margin-bottom:1.2rem; }
+p.lead{ font-size:clamp(1.05rem,1.6vw,1.28rem); color:var(--ink-dim); max-width:62ch; }
+
+.reveal-line{ overflow:hidden; display:block; }
+.reveal-line > span{ display:block; transform:translateY(110%); will-change:transform; }
+.rise{ opacity:0; transform:translateY(40px); will-change:transform,opacity; }
+
+/* ============================================================
+   5. HERO
+   ============================================================ */
+#hero{ min-height:100vh; display:flex; align-items:center; padding:12vh 0; }
+#hero .wrap{ width:100%; }
+.hero-title{ font-size:clamp(2.6rem,9vw,7rem); line-height:.94; font-weight:700; letter-spacing:-.03em; }
+.hero-title .ghost{
+  -webkit-text-stroke:1.4px var(--ink-faint); color:transparent; font-style:normal;
+  display:inline-block; transition:opacity .34s var(--ease), filter .34s var(--ease), transform .34s var(--ease), color .34s linear;
+}
+.hero-title .ghost.solid{ -webkit-text-stroke:0; }            /* role words = solid fill */
+.hero-title .ghost.swap{ opacity:0; filter:blur(16px); transform:translateY(12px) skewX(-5deg); }  /* mid-morph state */
+.hero-sub{ margin-top:1.8rem; font-size:clamp(1rem,2.2vw,1.45rem); color:var(--ink-dim); max-width:52ch; }
+.hero-sub b{ color:var(--ink); font-weight:600; }
+.role-row{ margin-top:2.2rem; display:flex; gap:10px; flex-wrap:wrap; }
+.role-row span{
+  font-family:'JetBrains Mono', monospace; font-size:.82rem; padding:8px 16px;
+  border:1px solid var(--line); border-radius:100px; background:var(--bg-card); color:var(--ink-dim);
+}
+.role-row span b{ color:var(--ink); font-weight:600; }
+.hero-meta{ margin-top:2.2rem; display:flex; gap:22px; flex-wrap:wrap; font-family:'JetBrains Mono', monospace; font-size:.82rem; color:var(--ink-faint); }
+.hero-meta span{ display:flex; align-items:center; gap:8px; }
+.hero-meta i{ width:7px; height:7px; border-radius:50%; background:var(--accent); font-style:normal; transition:background .6s linear; }
+
+/* HR essentials strip — recruiter-scannable status + Download CV */
+.hr-strip{ margin-top:2.4rem; display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
+.hr-strip .st{ font-family:'JetBrains Mono', monospace; font-size:.8rem; color:var(--ink-dim); display:flex; align-items:center; gap:8px; }
+.hr-strip .st i{ width:8px; height:8px; border-radius:50%; background:#0ca678; font-style:normal; box-shadow:0 0 0 4px rgba(12,166,120,.16); animation:livePulse 2.4s ease-in-out infinite; }
+@keyframes livePulse{ 0%,100%{ box-shadow:0 0 0 3px rgba(12,166,120,.18);} 50%{ box-shadow:0 0 0 6px rgba(12,166,120,.05);} }
+.cv-btn{ font-family:'JetBrains Mono', monospace; font-size:.82rem; font-weight:600; text-decoration:none; padding:10px 20px; border-radius:100px; background:var(--accent); color:#fff; transition:transform .3s var(--ease), background .6s linear, box-shadow .3s; box-shadow:0 8px 22px -8px rgba(var(--accent-rgb),.6); }
+.cv-btn:hover{ transform:translateY(-2px); box-shadow:0 14px 28px -8px rgba(var(--accent-rgb),.75); }
+
+.scroll-hint{
+  position:absolute; bottom:26px; left:50%; transform:translateX(-50%);
+  font-family:'JetBrains Mono', monospace; font-size:.7rem; letter-spacing:.3em;
+  text-transform:uppercase; color:var(--ink-faint); z-index:5;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+}
+.scroll-hint::after{ content:""; width:1px; height:34px; background:linear-gradient(var(--accent), transparent); animation:hintPulse 2s var(--ease) infinite; }
+@keyframes hintPulse{ 0%{transform:scaleY(0);transform-origin:top;opacity:0;} 40%{opacity:1;} 100%{transform:scaleY(1);transform-origin:top;opacity:0;} }
+/* avoid colliding with hero content on short viewports */
+@media (max-height:660px){ .scroll-hint{ display:none; } }
+
+/* ============================================================
+   5b. PAGE 2 — INTRO / ELEVATOR PITCH
+   ============================================================ */
+#intro{ padding:15vh 0 11vh; }
+.intro-lead{
+  font-size:clamp(1.6rem,3.6vw,2.9rem); font-weight:600; line-height:1.22; letter-spacing:-.015em;
+  max-width:20ch; color:var(--ink);
+}
+.intro-lead b{ color:var(--accent); font-weight:700; transition:color .6s linear; }
+.intro-support{ margin-top:1.7rem; font-size:clamp(1rem,1.7vw,1.25rem); line-height:1.55; color:var(--ink-dim); max-width:52ch; }
+.intro-support b{ color:var(--ink); font-weight:600; }
+.intro-support .pop{ color:var(--accent); font-weight:700; transition:color .6s linear; }
+
+/* ============================================================
+   6. THE FOUR FORMS (about)
+   ============================================================ */
+#forms{ padding:14vh 0; }
+.manifesto{ font-size:clamp(1.5rem,4vw,3rem); font-weight:500; line-height:1.25; letter-spacing:-.01em; max-width:20ch; }
+.manifesto .hl{ color:var(--accent); transition:color .6s linear; font-weight:600; }
+.forms-grid{ margin-top:8vh; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.form-card{
+  background:var(--bg-card); border:1px solid var(--line); border-radius:16px;
+  padding:clamp(20px,2.2vw,26px); position:relative; overflow:hidden;
+  transition:transform .5s var(--ease), box-shadow .5s, border-color .5s;
+}
+.form-card:hover{ transform:translateY(-6px); box-shadow:0 18px 40px -22px rgba(11,14,22,.35); }
+.form-card .bar{ position:absolute; top:0; left:0; right:0; height:3px; }
+.form-card .no{ font-family:'JetBrains Mono', monospace; font-size:.72rem; color:var(--ink-faint); letter-spacing:.18em; }
+.form-card .nm{ font-size:1.18rem; font-weight:700; margin:.5rem 0 .6rem; line-height:1.15; }
+.form-card p{ color:var(--ink-dim); font-size:.9rem; }
+.form-card:nth-child(1) .bar{ background:var(--form-aie); } .form-card:nth-child(1):hover{ border-color:var(--form-aie); } .form-card:nth-child(1) .nm{ color:var(--form-aie); }
+.form-card:nth-child(2) .bar{ background:var(--form-mle); } .form-card:nth-child(2):hover{ border-color:var(--form-mle); } .form-card:nth-child(2) .nm{ color:var(--form-mle); }
+.form-card:nth-child(3) .bar{ background:var(--form-swe); } .form-card:nth-child(3):hover{ border-color:var(--form-swe); } .form-card:nth-child(3) .nm{ color:var(--form-swe); }
+.form-card:nth-child(4) .bar{ background:var(--form-hci); } .form-card:nth-child(4):hover{ border-color:var(--form-hci); } .form-card:nth-child(4) .nm{ color:var(--form-hci); }
+@media (max-width:900px){ .forms-grid{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:520px){ .forms-grid{ grid-template-columns:1fr; } }
+
+/* education (compact, scannable) */
+#education{ padding:8vh 0; }
+.edu-row{ margin-top:2rem; display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.edu{ background:var(--bg-card); border:1px solid var(--line); border-radius:14px; padding:clamp(18px,2.4vw,26px); transition:transform .5s var(--ease), border-color .5s; }
+.edu:hover{ transform:translateY(-4px); border-color:rgba(var(--accent-rgb),.5); }
+.edu .deg{ font-size:1.08rem; font-weight:700; }
+.edu .sch{ color:var(--ink-dim); font-size:.92rem; margin-top:.3rem; }
+.edu .yr{ font-family:'JetBrains Mono', monospace; font-size:.76rem; color:var(--ink-faint); margin-top:.5rem; }
+@media (max-width:680px){ .edu-row{ grid-template-columns:1fr; } }
+
+/* ============================================================
+   7. RESEARCH (AI agents × HCI)
+   ============================================================ */
+#research{ padding:14vh 0; }
+.thesis-card{
+  margin-top:3rem; border:1px solid var(--line); border-radius:18px; background:var(--bg-card);
+  padding:clamp(26px,4vw,52px); position:relative; overflow:hidden;
+  box-shadow:0 30px 60px -40px rgba(11,14,22,.30);
+}
+.thesis-card::before{ content:""; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg, var(--accent), transparent); }
+.thesis-title{ font-size:clamp(1.4rem,3vw,2.1rem); line-height:1.18; max-width:26ch; }
+.thesis-sub{ color:var(--ink-dim); margin-top:1rem; max-width:64ch; }
+.thesis-sup{ margin-top:1.4rem; font-family:'JetBrains Mono', monospace; font-size:.8rem; color:var(--ink-faint); }
+.thesis-sup b{ color:var(--ink-dim); }
+.stat-row{ display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(14px,2vw,30px); margin-top:3.4rem; }
+.stat .num{ font-size:clamp(2rem,5vw,3.2rem); font-weight:700; letter-spacing:-.03em; line-height:1; color:var(--accent); transition:color .6s linear; }
+.stat .lbl{ margin-top:.6rem; font-size:.85rem; color:var(--ink-dim); }
+@media (max-width:760px){ .stat-row{ grid-template-columns:repeat(2,1fr); row-gap:2rem; } }
+.tag-row{ display:flex; flex-wrap:wrap; gap:9px; margin-top:2.2rem; }
+.tag-row span{ font-family:'JetBrains Mono', monospace; font-size:.76rem; padding:7px 13px; border:1px solid var(--line); border-radius:100px; color:var(--ink-dim); background:var(--bg); }
+.tag-row span.env{ border-style:dashed; color:var(--ink-faint); }
+
+/* ============================================================
+   8. EXPERIENCE — sticky timeline
+   ============================================================ */
+#experience{ padding:12vh 0; }
+.xp{ display:grid; grid-template-columns:0.9fr 1.1fr; gap:clamp(30px,5vw,80px); align-items:start; }
+.xp-sticky{ position:sticky; top:20vh; }
+.xp-list{ display:flex; flex-direction:column; gap:14px; }
+.job{ border:1px solid var(--line); border-radius:16px; padding:clamp(22px,3vw,32px); background:var(--bg-card); transition:transform .5s var(--ease), border-color .5s, box-shadow .5s; }
+.job:hover{ transform:translateY(-4px); border-color:rgba(var(--accent-rgb),.5); box-shadow:0 18px 40px -26px rgba(11,14,22,.35); }
+.job .role{ font-size:1.22rem; font-weight:700; }
+.job .org{ color:var(--accent); font-size:.95rem; margin-top:.2rem; transition:color .6s linear; }
+.job .when{ font-family:'JetBrains Mono', monospace; font-size:.76rem; color:var(--ink-faint); margin-top:.6rem; }
+.job ul{ list-style:none; margin-top:1.1rem; display:flex; flex-direction:column; gap:.7rem; }
+.job li{ color:var(--ink-dim); font-size:.94rem; padding-left:1.4rem; position:relative; }
+.job li::before{ content:"▸"; position:absolute; left:0; color:var(--accent); transition:color .6s linear; }
+.job li b{ color:var(--ink); font-weight:600; }
+@media (max-width:820px){ .xp{ grid-template-columns:1fr; } .xp-sticky{ position:relative; top:0; } }
+
+/* ============================================================
+   9. PROJECTS — cards
+   ============================================================ */
+#projects{ padding:12vh 0; }
+.proj-grid{ margin-top:0; display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+
+/* project sub-groups + the 3 signature VR games */
+.group-label{ font-family:'JetBrains Mono', monospace; font-size:.78rem; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-faint); margin:3.4rem 0 1.4rem; display:flex; align-items:center; gap:14px; }
+.group-label::after{ content:""; flex:1; height:1px; background:var(--line); }
+.games-sub{ color:var(--ink-dim); max-width:62ch; margin-top:1.2rem; font-size:clamp(1rem,1.5vw,1.15rem); }
+.games-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+@media (max-width:820px){ .games-grid{ grid-template-columns:1fr; } }
+
+/* video game cards (poster thumbnail + click-to-play lightbox) */
+.gcard{ padding:0; overflow:hidden; }
+.gcard::after{ display:none; }
+.gthumb{ position:relative; display:block; width:100%; aspect-ratio:16/9; border:0; margin:0; padding:0; cursor:pointer; background:#000; overflow:hidden; }
+.gthumb img{ width:100%; height:100%; object-fit:cover; display:block; transition:transform .6s var(--ease); }
+.gcard:hover .gthumb img{ transform:scale(1.06); }
+.playbadge{ position:absolute; inset:0; margin:auto; width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,.94); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:1.05rem; padding-left:4px; box-shadow:0 10px 28px -8px rgba(0,0,0,.55); transition:transform .3s var(--ease), color .6s linear; }
+.gthumb:hover .playbadge{ transform:scale(1.14); }
+.gbody{ padding:clamp(20px,3vw,28px); display:flex; flex-direction:column; flex:1; }
+.gcode{ margin-top:1.1rem; font-family:'JetBrains Mono', monospace; font-size:.76rem; color:var(--ink-faint); text-decoration:none; align-self:flex-start; transition:color .3s; }
+.gcode:hover{ color:var(--accent); }
+
+/* lightbox video player */
+.lightbox{ position:fixed; inset:0; z-index:5000; background:rgba(5,6,10,.88); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:clamp(16px,4vw,60px); opacity:0; pointer-events:none; transition:opacity .3s; }
+.lightbox.open{ opacity:1; pointer-events:auto; }
+.lb-inner{ width:min(1040px,100%); }
+.lb-inner video{ width:100%; border-radius:14px; background:#000; display:block; box-shadow:0 30px 80px -20px rgba(0,0,0,.7); }
+.lb-cap{ margin-top:1rem; text-align:center; font-family:'JetBrains Mono', monospace; font-size:.85rem; letter-spacing:.05em; color:#cfd4e0; }
+.lb-close{ position:absolute; top:22px; right:26px; width:46px; height:46px; border-radius:50%; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:#fff; font-size:1.1rem; cursor:pointer; transition:background .3s; }
+.lb-close:hover{ background:rgba(255,255,255,.2); }
+.card{
+  border:1px solid var(--line); border-radius:18px; padding:clamp(22px,3vw,30px);
+  background:var(--bg-card); position:relative; overflow:hidden; min-height:220px;
+  display:flex; flex-direction:column; text-decoration:none; color:inherit;
+  transition:transform .5s var(--ease), border-color .5s, box-shadow .5s;
+}
+.card:hover{ transform:translateY(-6px); border-color:rgba(var(--accent-rgb),.5); box-shadow:0 22px 46px -28px rgba(11,14,22,.4); }
+.card::after{ content:""; position:absolute; width:150px; height:150px; right:-50px; top:-50px; background:radial-gradient(circle, rgba(var(--accent-rgb),.16), transparent 70%); transition:background .6s linear; }
+.card .tag{ font-family:'JetBrains Mono', monospace; font-size:.72rem; color:var(--ink-faint); letter-spacing:.14em; }
+.card h3{ font-size:1.4rem; margin:.7rem 0 .6rem; }
+.card p{ color:var(--ink-dim); font-size:.94rem; flex:1; }
+.card .stack{ margin-top:1.3rem; display:flex; flex-wrap:wrap; gap:8px; }
+.card .stack span{ font-family:'JetBrains Mono', monospace; font-size:.72rem; padding:5px 11px; border:1px solid var(--line); border-radius:8px; color:var(--ink-dim); background:var(--bg); }
+.card .link{ position:absolute; top:24px; right:24px; color:var(--ink-faint); font-size:1.15rem; transition:color .3s; }
+.card:hover .link{ color:var(--accent); }
+@media (max-width:760px){ .proj-grid{ grid-template-columns:1fr; } }
+
+.vr-strip{ margin-top:2rem; padding:clamp(18px,3vw,26px); border:1px dashed var(--line); border-radius:16px; background:var(--bg-card); }
+.vr-strip .tag{ font-family:'JetBrains Mono', monospace; font-size:.72rem; color:var(--ink-faint); letter-spacing:.14em; }
+.vr-strip .games{ margin-top:1rem; display:flex; flex-wrap:wrap; gap:10px; }
+.vr-strip .games span{ font-size:.9rem; padding:8px 15px; border:1px solid var(--line); border-radius:100px; color:var(--ink); background:var(--bg); }
+
+/* ============================================================
+   10. SKILLS
+   ============================================================ */
+#skills{ padding:12vh 0; }
+.skill-grid{ margin-top:3rem; display:grid; grid-template-columns:repeat(2,1fr); gap:clamp(20px,3vw,40px); }
+.skill-col h4{ font-family:'JetBrains Mono', monospace; font-size:.8rem; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); margin-bottom:1.1rem; transition:color .6s linear; }
+.skill-col .chips{ display:flex; flex-wrap:wrap; gap:9px; }
+.skill-col .chips span{ font-size:.9rem; padding:8px 15px; border:1px solid var(--line); border-radius:10px; color:var(--ink-dim); background:var(--bg-card); transition:border-color .3s, color .3s; }
+.skill-col .chips span:hover{ color:var(--ink); border-color:rgba(var(--accent-rgb),.6); }
+@media (max-width:680px){ .skill-grid{ grid-template-columns:1fr; } }
+
+/* ============================================================
+   11. CONTACT
+   ============================================================ */
+#contact{ padding:16vh 0 12vh; text-align:center; }
+.contact-big{ font-size:clamp(2.4rem,8vw,5.6rem); font-weight:700; letter-spacing:-.03em; line-height:1; }
+.contact-big a{ color:var(--accent); text-decoration:none; transition:color .6s linear; }
+.contact-big a:hover{ -webkit-text-stroke:1.4px var(--accent); color:transparent; }
+.contact-links{ margin-top:3.2rem; display:flex; gap:clamp(16px,3vw,40px); justify-content:center; flex-wrap:wrap; }
+.contact-links a{ color:var(--ink-dim); text-decoration:none; font-family:'JetBrains Mono', monospace; font-size:.9rem; letter-spacing:.06em; transition:color .3s; }
+.contact-links a:hover{ color:var(--accent); }
+footer{ margin-top:7vh; text-align:center; color:var(--ink-faint); font-family:'JetBrains Mono', monospace; font-size:.75rem; padding-bottom:5vh; }
+
+/* ============================================================
+   12. ACCESSIBILITY — mandatory reduced-motion fallback
+   ============================================================ */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important; animation-iteration-count:1 !important;
+    transition-duration:.01ms !important; scroll-behavior:auto !important;
+  }
+  .reveal-line > span{ transform:none !important; }
+  .rise{ opacity:1 !important; transform:none !important; }
+}
+</style>
 </head>
+
 <body>
 
-  <div id="cursor-dot" aria-hidden="true"></div>
-  <div id="cursor-ring" aria-hidden="true"></div>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 
-  <!-- NAV -->
-  <nav id="nav">
-    <a href="#hero" class="nav-logo">.<span class="accent">/</span>init</a>
-    <ul class="nav-links">
-      <li><a href="#about">ABOUT</a></li>
-      <li><a href="#projects">PROJECTS</a></li>
-      <li><a href="#experience">EXPERIENCE</a></li>
-      <li><a href="#skills">SKILLS</a></li>
-      <li><a href="#contact">CONTACT</a></li>
-    </ul>
-  </nav>
+<!-- live AI-agent network background + accent wash -->
+<div id="aura" data-depth="0" aria-hidden="true"></div>
+<div id="net" data-depth="1" aria-hidden="true"><canvas id="netCanvas"></canvas></div>
 
-  <!-- HERO -->
-  <section id="hero">
-    <canvas id="particle-canvas" aria-hidden="true"></canvas>
-    <div class="hero-inner">
-      <div class="terminal-line">
-        <span class="prompt" id="hero-prompt" style="visibility:hidden">$</span>
-        <span class="cmd" id="hero-cmd"></span>
-        <span class="cursor">_</span>
+<div id="progress" aria-hidden="true"></div>
+
+<nav id="nav">
+  <div class="brand">RICHIE<i>·</i>JIN</div>
+  <div class="nav-right">
+    <div class="links">
+      <a href="#forms">Forms</a>
+      <a href="#experience">Experience</a>
+      <a href="#projects">Work</a>
+      <a href="#research">Research</a>
+      <a href="#skills">Skills</a>
+      <a href="#contact">Contact</a>
+    </div>
+    <a class="nav-cv" href="Richie-Jin-CV.pdf" download><i></i>Download CV</a>
+  </div>
+</nav>
+
+<main id="main-content">
+
+<!-- ============================ HERO ============================ -->
+<section class="scene" id="hero" data-form="aie">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:46vw;height:46vw;left:-10vw;top:-6vw;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">Yutong · Richie · Jin</p>
+    <h1 class="hero-title">
+      <span class="reveal-line"><span>One Soul,</span></span>
+      <span class="reveal-line"><span><em class="ghost" id="formword">Many Forms.</em></span></span>
+    </h1>
+  </div>
+  <div class="scroll-hint" aria-hidden="true">Scroll to transform</div>
+</section>
+
+<!-- ============================ PAGE 2 — INTRO / PITCH ============================ -->
+<section class="scene" id="intro" data-form="aie">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:40vw;height:40vw;right:-10vw;top:8vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="act-line rise"><span class="n">01</span><span class="t">Who I am</span></div>
+    <p class="intro-lead rise">
+      I'm an engineer who loves building <b>AI agents</b> — and designing the <b>games</b> they come alive in.
+    </p>
+    <p class="intro-support rise">
+      I'm Richie, a Master of Engineering who builds <b>AI agents</b> and the interactive worlds they live in —
+      multi-modal agents (LLM, vision, speech), <b>VR games</b>, and the <b>machine learning</b> underneath.
+      I'm happiest giving a character a little life. Still learning, always building — based in Auckland, open to work.
+    </p>
+    <div class="hr-strip rise">
+      <span class="st"><i></i> Open to work · Available now</span>
+      <span class="st">M.E. graduate · 2026</span>
+      <span class="st">Auckland, New Zealand</span>
+      <span class="st">EN · 한국어 · 中文</span>
+      <a class="cv-btn" href="Richie-Jin-CV.pdf" download>Download CV ↓</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ THE FOUR FORMS ============================ -->
+<section class="scene" id="forms" data-form="aie">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:38vw;height:38vw;right:-8vw;top:8vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">The four forms</p>
+    <p class="manifesto" data-light>
+      My thesis asked whether an agent stays <span class="hl">itself</span> while changing form.
+      So do I — one core of curiosity taking <span class="hl">four shapes</span>, each backed by real work.
+    </p>
+
+    <div class="forms-grid">
+      <div class="form-card rise"><span class="bar"></span>
+        <div class="no">FORM I</div><div class="nm">AI<br/>Engineer</div>
+        <p>Multi-modal &amp; multi-agent systems — LLM/VLM/STT/TTS, local RAG, computer-vision APIs.</p>
       </div>
-      <h1 class="hero-name glitch" id="hero-name" data-text="YUTONG (RICHIE) JIN" style="opacity:0">YUTONG <span class="accent">(RICHIE)</span> JIN</h1>
-      <p class="hero-role" id="hero-role" style="opacity:0">VR Developer &nbsp;·&nbsp; AI Systems Engineer &nbsp;·&nbsp; ML Research</p>
-      <div class="hero-divider" id="hero-divider" style="opacity:0"></div>
-      <p class="hero-sub" id="hero-sub1" style="opacity:0">Master of Engineering &nbsp;@&nbsp; University of Canterbury &nbsp;|&nbsp; Auckland, NZ</p>
-      <p class="hero-sub hero-sub--sm" id="hero-sub2" style="opacity:0">C# &nbsp;·&nbsp; Unity &nbsp;·&nbsp; Python &nbsp;·&nbsp; LLM &nbsp;·&nbsp; VR</p>
-      <div class="hero-cta" id="hero-cta" style="opacity:0">
-        <a href="#projects" class="btn-primary" data-magnetic>VIEW PROJECTS</a>
-        <a href="#contact" class="btn-secondary" data-magnetic>CONTACT</a>
+      <div class="form-card rise"><span class="bar"></span>
+        <div class="no">FORM II</div><div class="nm">Machine&nbsp;Learning Engineer</div>
+        <p>Production ML in healthcare &amp; energy — 95% accuracy, edge-optimized, deployed for real-time use.</p>
+      </div>
+      <div class="form-card rise"><span class="bar"></span>
+        <div class="no">FORM III</div><div class="nm">Software<br/>Engineer</div>
+        <p>Full-stack systems &amp; automation — grid data over 6M records, Python backends, real-time APIs.</p>
+      </div>
+      <div class="form-card rise"><span class="bar"></span>
+        <div class="no">FORM IV</div><div class="nm">HCI</div>
+        <p>Human-centred research — agent identity, trust &amp; rapport, controlled user studies and statistics.</p>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- ABOUT -->
-  <section id="about">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> ABOUT</h2>
-      <div class="about-grid">
-        <div class="about-text">
-          <p>
-            Master's researcher investigating how <span class="accent">identity continuity</span> in virtual AI agents
-            affects rapport, emotional connectedness, and credibility in VR environments.
-          </p>
-          <p>
-            My thesis — <em>"One Soul, Many Forms"</em> — demonstrated that agents maintaining identity continuity
-            across multiple VR games produced significantly stronger user relationships
-            (<strong>d = 1.22, p = .005</strong>) than discontinuous agents.
-          </p>
-          <p>
-            <a href="https://doi.org/10.26021/16462" target="_blank" rel="noopener" class="btn-primary btn-sm">READ THESIS &rarr;</a>
-          </p>
-          <p>
-            I combine Computer Science fundamentals with hands-on VR development, multi-modal AI integration,
-            and ML engineering — building systems that bridge the gap between intelligent agents and human experience.
-          </p>
-        </div>
-        <div class="about-stats">
-          <div class="stat-block" data-reveal style="--reveal-delay:0ms">
-            <span class="stat-num accent" data-target="3" data-suffix="">3</span>
-            <span class="stat-label">VR Games Built</span>
-          </div>
-          <div class="stat-block" data-reveal style="--reveal-delay:100ms">
-            <span class="stat-num accent" data-target="26" data-suffix="">26</span>
-            <span class="stat-label">Study Participants</span>
-          </div>
-          <div class="stat-block" data-reveal style="--reveal-delay:200ms">
-            <span class="stat-num accent" data-target="95" data-suffix="%">95%</span>
-            <span class="stat-label">ML Model Accuracy</span>
-          </div>
-          <div class="stat-block" data-reveal style="--reveal-delay:300ms">
-            <span class="stat-num accent" data-target="6" data-suffix="M+">6M+</span>
-            <span class="stat-label">Records Processed</span>
-          </div>
-        </div>
+<!-- ============================ EDUCATION ============================ -->
+<section class="scene" id="education" data-form="swe">
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">Education</p>
+    <div class="edu-row">
+      <div class="edu rise">
+        <div class="deg">M.E. Human Interface Technology</div>
+        <div class="sch">University of Canterbury · GPA 7.63</div>
+        <div class="yr">Feb 2025 — Apr 2026 · Christchurch, NZ</div>
+      </div>
+      <div class="edu rise">
+        <div class="deg">B.S. Computer Science</div>
+        <div class="sch">Yanbian University</div>
+        <div class="yr">2017 — 2021 · Yanji, China</div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- PROJECTS -->
-  <section id="projects">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> PROJECTS</h2>
-      <p class="section-sub">Thesis: <em>Intelligent VR Games with Multi-Modal AI Agents</em> &nbsp;·&nbsp; Personal Projects</p>
-
-      <!-- Project 01 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[01]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/EscapeRoom" target="_blank" rel="noopener" class="project-title-link">FIREBOY — VR Escape Room <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <video controls preload="none" class="project-video" poster="images/fireboy-poster.png">
-              <source src="videos/FireBoy1.mp4" type="video/mp4" />
-              Your browser does not support HTML5 video.
-            </video>
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Abstract animated flame character with facial features acts as an adaptive AI guide in a multi-step
-              puzzle escape room. The agent integrates <span class="accent">LLM + TTS + STT</span> for natural voice
-              interaction and provides context-aware hints based on player progress.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Unity</span>
-              <span class="tag">C#</span>
-              <span class="tag">LLM</span>
-              <span class="tag">TTS/STT</span>
-              <span class="tag">VR</span>
-              <span class="tag">Puzzle Design</span>
-            </div>
-            <ul class="project-bullets">
-              <li>Multi-step puzzle: collect 5 clues → craft potion → unlock exit</li>
-              <li>Gaze-based interaction system with adaptive hint generation</li>
-              <li>Agent embodied as abstract non-human form (flame character)</li>
-            </ul>
-          </div>
-        </div>
+<!-- ============================ EXPERIENCE ============================ -->
+<section class="scene" id="experience" data-form="swe">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:40vw;height:40vw;right:-10vw;top:0;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="xp">
+      <div class="xp-sticky">
+        <div class="act-line"><span class="n">02</span><span class="t">What I've done</span></div>
+        <h2 class="section-title">Built to ship,<br/>measured in results.</h2>
+        <p class="lead">From hospital wards to the power grid — machine learning and full-stack systems that ran in production, not just notebooks.</p>
       </div>
 
-      <!-- Project 02 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[02]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/TheWorldBeyond" target="_blank" rel="noopener" class="project-title-link">THE WORLD BEYOND — Collaborative Shooting <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <video controls preload="none" class="project-video" poster="images/alien-poster.png">
-              <source src="videos/TheWorldBeyond.mp4" type="video/mp4" />
-              Your browser does not support HTML5 video.
-            </video>
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Embodied alien agent "Oppy" from Meta's open-source sample, redesigned as a collaborative partner
-              in a UFO shooting game. Introduces <span class="accent">task dependency design</span> — the agent
-              retrieves invisible ammunition that the player cannot obtain alone, enforcing genuine collaboration.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Unity</span>
-              <span class="tag">C#</span>
-              <span class="tag">Meta XR</span>
-              <span class="tag">AI Agent</span>
-              <span class="tag">Collaborative Design</span>
-            </div>
-            <ul class="project-bullets">
-              <li>Task dependency: player depends on agent for bullet supply</li>
-              <li>Real-time feedback and encouragement system</li>
-              <li>Embodied physical presence in mixed reality environment</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Project 03 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[03]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/Whisperer" target="_blank" rel="noopener" class="project-title-link">WHISPERER — Voice-Only Navigation Agent <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <video controls preload="none" class="project-video" poster="images/whisperer-poster.svg">
-              <source src="videos/Whisperer.mp4" type="video/mp4" />
-              Your browser does not support HTML5 video.
-            </video>
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              An invisible, voice-only presence guides players through a series of sequential tasks in a virtual
-              home environment. Built on Meta's Voice SDK, the agent uses
-              <span class="accent">gesture + voice combinations</span> — eliminating visual distraction to isolate
-              the effect of voice identity continuity on user trust.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Unity</span>
-              <span class="tag">C#</span>
-              <span class="tag">Meta Voice SDK</span>
-              <span class="tag">STT/TTS</span>
-              <span class="tag">Interaction Design</span>
-            </div>
-            <ul class="project-bullets">
-              <li>5 sequential tasks: vase, radio, flower, hidden object, radio off</li>
-              <li>Voice-only modality — no visual agent embodiment</li>
-              <li>Gesture-voice combination interaction system</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Project 04 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[04]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener" class="project-title-link">JOB HUNTER — Multi-Agent Automation Pipeline <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-info">
-            <p class="project-desc">
-              A 5-agent automated pipeline built entirely in Python — scrapes Auckland job listings across
-              <span class="accent">Seek, Indeed, and company career pages</span>, scores each role for fit
-              using an LLM, writes tailored cover letters, QC-reviews and rewrites them, then submits
-              applications directly via Playwright or generates a Gmail draft. No API key required —
-              powered by Claude Code CLI as the AI backbone.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Python</span>
-              <span class="tag">Playwright</span>
-              <span class="tag">LLM</span>
-              <span class="tag">Multi-Agent</span>
-              <span class="tag">Automation</span>
-              <span class="tag">CLI</span>
-            </div>
-            <ul class="project-bullets">
-              <li>5 specialized agents: Scout → Filter (LLM scoring 1-10) → Writer → Reviewer → Sender</li>
-              <li>Listing-only Seek/Indeed scraper with session cookie persistence and cross-run deduplication</li>
-              <li>Dual submission: Seek direct apply via browser automation, or Gmail email draft with resume attachment</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Divider: SE Projects -->
-      <div class="projects-divider" data-reveal>
-        <p class="projects-divider-label">SOFTWARE ENGINEERING — PERSONAL PROJECTS</p>
-      </div>
-
-      <!-- Project 05 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[05]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener" class="project-title-link">RAG CHATBOT — Local LLM + Vector Search <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <img src="images/projects/rag-chatbot.png" alt="RAG Chatbot demo" class="project-img" loading="lazy" />
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Production-ready Retrieval-Augmented Generation system — upload PDF, TXT, or Markdown,
-              ask questions, get <span class="accent">streamed answers</span> from a local Ollama LLM.
-              No cloud API keys required; fully self-hosted with ChromaDB vector storage.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Python</span>
-              <span class="tag">FastAPI</span>
-              <span class="tag">ChromaDB</span>
-              <span class="tag">Ollama</span>
-              <span class="tag">RAG</span>
-              <span class="tag">Docker</span>
-            </div>
-            <ul class="project-bullets">
-              <li>Document pipeline: PDF/TXT/MD → chunking → Ollama embeddings → ChromaDB</li>
-              <li>Top-K retrieval → augmented prompt → streaming SSE response with source citation</li>
-              <li>Docker Compose full-stack deployment; pytest-asyncio test suite</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Project 06 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[06]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener" class="project-title-link">REAL-TIME OBJECT DETECTION — YOLOv8 API <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <img src="images/projects/object-detection.gif" alt="Object Detection demo" class="project-img" loading="lazy" />
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Real-time object detection API serving <span class="accent">YOLOv8n</span> inference over REST and
-              WebSocket. Upload an image for instant bounding boxes, or stream a live camera feed for
-              continuous detection at low latency.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Python</span>
-              <span class="tag">FastAPI</span>
-              <span class="tag">YOLOv8</span>
-              <span class="tag">WebSocket</span>
-              <span class="tag">OpenCV</span>
-              <span class="tag">Docker</span>
-            </div>
-            <ul class="project-bullets">
-              <li>REST endpoint: upload image → bounding boxes + annotated JPEG response</li>
-              <li>WebSocket stream for live detection; auto hardware selection (MPS → CUDA → CPU)</li>
-              <li>80-class COCO detection via YOLOv8n with configurable confidence threshold</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Project 07 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[07]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener" class="project-title-link">STOCK ANALYTICS DASHBOARD — ML Forecasting <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <img src="images/projects/stock-dashboard.gif" alt="Stock Dashboard demo" class="project-img" loading="lazy" />
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Interactive stock analytics platform with <span class="accent">ML price prediction</span> and
-              portfolio optimization. Pulls real-time data via Yahoo Finance, computes technical indicators,
-              and trains four ML models with time-series cross-validation.
-            </p>
-            <div class="project-tags">
-              <span class="tag">Python</span>
-              <span class="tag">Streamlit</span>
-              <span class="tag">XGBoost</span>
-              <span class="tag">Plotly</span>
-              <span class="tag">scikit-learn</span>
-              <span class="tag">pandas</span>
-            </div>
-            <ul class="project-bullets">
-              <li>4 ML models (XGBoost, Random Forest, GBM, Ridge) with time-series cross-validation</li>
-              <li>20+ engineered features: RSI, MACD, Bollinger Bands, rolling returns, Sharpe, ATR</li>
-              <li>Portfolio comparison page: normalized returns, correlation heatmap, Sharpe optimization</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Project 08 -->
-      <div class="project-card" data-reveal>
-        <div class="project-header">
-          <span class="project-num accent">[08]</span>
-          <h3 class="project-title"><a href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener" class="project-title-link">SMARTBOARD — AI-Powered Project Management <span class="link-arrow">↗</span></a></h3>
-        </div>
-        <div class="project-body">
-          <div class="project-video-wrap">
-            <img src="images/projects/smartboard.gif" alt="SmartBoard demo" class="project-img" loading="lazy" />
-          </div>
-          <div class="project-info">
-            <p class="project-desc">
-              Full-stack project management platform with a dark-theme Kanban board,
-              <span class="accent">real-time WebSocket</span> collaboration, and AI task generation
-              via Ollama streaming SSE. React 18 frontend + FastAPI backend + PostgreSQL.
-            </p>
-            <div class="project-tags">
-              <span class="tag">React 18</span>
-              <span class="tag">TypeScript</span>
-              <span class="tag">FastAPI</span>
-              <span class="tag">PostgreSQL</span>
-              <span class="tag">WebSocket</span>
-              <span class="tag">Docker</span>
-            </div>
-            <ul class="project-bullets">
-              <li>Kanban drag-and-drop with real-time WebSocket sync across all connected clients</li>
-              <li>AI-generated task descriptions + project summaries via Ollama streaming SSE</li>
-              <li>JWT auth + per-user project isolation; 19-test pytest suite; GitHub Actions CI</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- EXPERIENCE -->
-  <section id="experience">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> EXPERIENCE</h2>
-      <div class="timeline">
-
-        <div class="timeline-item" data-reveal>
-          <div class="timeline-date">NOV 2025 – JAN 2026</div>
-          <div class="timeline-content">
-            <div class="timeline-header">
-              <span class="timeline-role">Research Assistant</span>
-              <span class="timeline-sep">&nbsp;@&nbsp;</span>
-              <span class="timeline-org accent">HITLab NZ, University of Canterbury</span>
-            </div>
-            <ul class="timeline-bullets">
-              <li>Integrated multi-modal AI models (LLM, VLM, TTS, STT) into Unity-based educational VR project</li>
-              <li>Designed full-stack architecture: Python server backend + Unity C# frontend</li>
-              <li>Created C# programming tutorials and technical documentation</li>
-            </ul>
-            <div class="timeline-tags">
-              <span class="tag">Unity</span><span class="tag">C#</span><span class="tag">Python</span><span class="tag">LLM</span><span class="tag">VR</span>
-            </div>
-          </div>
+      <div class="xp-list">
+        <div class="job rise">
+          <div class="role">Research Assistant</div>
+          <div class="org">HIT Lab NZ · University of Canterbury</div>
+          <div class="when">Nov 2025 — Jan 2026 · Christchurch, NZ</div>
+          <ul>
+            <li>Integrated <b>multi-modal AI</b> (LLM, VLM, TTS, STT) into an interactive educational system.</li>
+            <li>Designed a full-stack architecture — <b>Python backend</b> with a responsive frontend.</li>
+            <li>Authored tutorials &amp; documentation onboarding beginners to the codebase.</li>
+          </ul>
         </div>
 
-        <div class="timeline-item" data-reveal>
-          <div class="timeline-date">JUN 2025 – JUL 2025</div>
-          <div class="timeline-content">
-            <div class="timeline-header">
-              <span class="timeline-role">Software Engineer Intern</span>
-              <span class="timeline-sep">&nbsp;@&nbsp;</span>
-              <span class="timeline-org accent">WEL Networks, Christchurch</span>
-            </div>
-            <ul class="timeline-bullets">
-              <li>Developed Python-based inverter compliance detection system processing <span class="accent">6M+ smart meter records</span></li>
-              <li>Implemented algorithms for Export Limit, Volt-Watt, and Volt-Var compliance detection</li>
-            </ul>
-            <div class="timeline-tags">
-              <span class="tag">Python</span><span class="tag">Data Engineering</span><span class="tag">Algorithm Design</span>
-            </div>
-          </div>
+        <div class="job rise">
+          <div class="role">Software Engineer Intern</div>
+          <div class="org">WEL Networks</div>
+          <div class="when">Jun 2025 — Jul 2025 · Christchurch, NZ</div>
+          <ul>
+            <li>Built a Python inverter-compliance detection system processing <b>6M+ smart-meter records</b>.</li>
+            <li>Implemented <b>Export Limit, Volt-Watt &amp; Volt-Var</b> compliance algorithms for grid stability.</li>
+            <li>Delivered automation replacing manual verification with <b>real-time monitoring</b>.</li>
+          </ul>
         </div>
 
-        <div class="timeline-item" data-reveal>
-          <div class="timeline-date">SEP 2022 – OCT 2023</div>
-          <div class="timeline-content">
-            <div class="timeline-header">
-              <span class="timeline-role">Machine Learning Engineer</span>
-              <span class="timeline-sep">&nbsp;@&nbsp;</span>
-              <span class="timeline-org accent">SIAT, Chinese Academy of Sciences</span>
-            </div>
-            <ul class="timeline-bullets">
-              <li>Built ML pipeline for core body temperature prediction — <span class="accent">95% accuracy</span></li>
-              <li>Developed exercise fatigue detection using ECG/IMU data — <span class="accent">85.46% accuracy</span></li>
-              <li>Optimized models for edge deployment, reducing inference time by <span class="accent">40%</span></li>
-            </ul>
-            <div class="timeline-tags">
-              <span class="tag">Python</span><span class="tag">PyTorch</span><span class="tag">ECG/IMU</span><span class="tag">Edge ML</span>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- SKILLS -->
-  <section id="skills">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> SKILLS</h2>
-      <div class="skills-grid">
-        <div class="skill-group" data-reveal>
-          <span class="skill-group-label">GAME / VR</span>
-          <div class="skill-tags">
-            <span class="tag tag--hi">Unity</span>
-            <span class="tag tag--hi">C#</span>
-            <span class="tag">Meta XR SDK</span>
-            <span class="tag">VR Design</span>
-            <span class="tag">Game AI</span>
-          </div>
-        </div>
-        <div class="skill-group" data-reveal>
-          <span class="skill-group-label">AI / ML</span>
-          <div class="skill-tags">
-            <span class="tag tag--hi">LLM Integration</span>
-            <span class="tag tag--hi">Multi-modal AI</span>
-            <span class="tag">TTS / STT</span>
-            <span class="tag">PyTorch</span>
-            <span class="tag">Edge Inference</span>
-          </div>
-        </div>
-        <div class="skill-group" data-reveal>
-          <span class="skill-group-label">LANGUAGES</span>
-          <div class="skill-tags">
-            <span class="tag tag--hi">Python</span>
-            <span class="tag tag--hi">C#</span>
-            <span class="tag">Java</span>
-            <span class="tag">R</span>
-            <span class="tag">Swift</span>
-            <span class="tag">SQL</span>
-            <span class="tag">MATLAB</span>
-          </div>
-        </div>
-        <div class="skill-group" data-reveal>
-          <span class="skill-group-label">INFRASTRUCTURE</span>
-          <div class="skill-tags">
-            <span class="tag">Docker</span>
-            <span class="tag">Kubernetes</span>
-            <span class="tag">Linux</span>
-            <span class="tag">VMware</span>
-          </div>
+        <div class="job rise">
+          <div class="role">Machine Learning Engineer</div>
+          <div class="org">SIAT · Chinese Academy of Sciences</div>
+          <div class="when">Sep 2022 — Oct 2023 · Shenzhen, China</div>
+          <ul>
+            <li>Engineered core-body-temperature prediction reaching <b>95% accuracy</b>, deployed for real-time monitoring.</li>
+            <li>Built a production exercise-fatigue platform on ECG/IMU deep learning — <b>85.46% accuracy</b>.</li>
+            <li>Optimized XGBoost / SVR / neural nets for edge, cutting inference time by <b>40%</b>.</li>
+          </ul>
         </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- EDUCATION -->
-  <section id="education">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> EDUCATION</h2>
-      <div class="edu-grid">
-        <div class="edu-card" data-reveal>
-          <div class="edu-year accent">2025 – 2026</div>
-          <div class="edu-degree">Master of Engineering</div>
-          <div class="edu-field">Human Interface Technology</div>
-          <div class="edu-school">University of Canterbury, NZ</div>
-          <div class="edu-gpa">GPA: <span class="accent">7.63</span></div>
-          <p class="edu-thesis">Thesis: <a href="https://doi.org/10.26021/16462" target="_blank" rel="noopener" class="thesis-link"><em>"One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents"</em></a></p>
+<!-- ============================ PROJECTS ============================ -->
+<section class="scene" id="projects" data-form="aie">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:46vw;height:46vw;left:-12vw;top:6vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">Selected Work</p>
+    <h2 class="section-title reveal-line"><span>Things I built<br/>because I had to.</span></h2>
+    <p class="games-sub rise">For my master's thesis I rebuilt three open-source VR games into playable experiences — each driven by a local LLM (Llama 3.2 + speech), one continuous agent taking three very different forms.</p>
+
+    <div class="group-label rise">VR games &amp; AI agents</div>
+    <div class="games-grid">
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/fireboy.mp4" data-title="FireBoy — abstract agent · VR escape room" aria-label="Play FireBoy gameplay video">
+          <img src="media/fireboy.jpg" alt="FireBoy VR escape room gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">ABSTRACT AGENT · ESCAPE ROOM</div>
+          <h3>FireBoy</h3>
+          <p>An animated flame agent I built into a VR escape room. Gaze-activated, it tracks your progress and gives adaptive, spoken hints through a multi-step potion puzzle.</p>
+          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>STT · TTS</span><span>Gaze</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
         </div>
-        <div class="edu-card" data-reveal>
-          <div class="edu-year accent">2017 – 2021</div>
-          <div class="edu-degree">Bachelor of Science</div>
-          <div class="edu-field">Computer Science</div>
-          <div class="edu-school">Yanbian University, China</div>
+      </article>
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/oppy.mp4" data-title="Oppy — embodied agent · co-op VR shooter" aria-label="Play Oppy gameplay video">
+          <img src="media/oppy.jpg" alt="Oppy embodied agent in The World Beyond gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">EMBODIED AGENT · CO-OP SHOOTER</div>
+          <h3>Oppy</h3>
+          <p>I turned Meta's alien character “Oppy” into an embodied teammate. Only Oppy can see the hidden ammo, so players must rely on it — real task dependency, not just chat.</p>
+          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>Quest 3</span><span>STT · TTS</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
         </div>
+      </article>
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/whisperer.mp4" data-title="Whisperer — voice-only agent · navigation game" aria-label="Play Whisperer gameplay video">
+          <img src="media/whisperer.jpg" alt="Whisperer voice-only agent navigation gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">VOICE-ONLY AGENT · NAVIGATION</div>
+          <h3>Whisperer</h3>
+          <p>A fully invisible, voice-only AI guide in a gesture-and-voice game. It walks players through five hands-on tasks with no visual presence at all.</p>
+          <div class="stack"><span>Unity</span><span>Voice SDK</span><span>Llama 3.2</span><span>STT · TTS</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+        </div>
+      </article>
+    </div>
+
+    <div class="group-label rise">AI · ML · data tools</div>
+    <div class="proj-grid">
+      <a class="card rise" href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener">
+        <span class="link">↗</span>
+        <div class="tag">AI · MULTI-AGENT</div>
+        <h3>Job Hunter</h3>
+        <p>Multi-agent job-hunting automation orchestrated with Claude Code — runs end-to-end with no API key required.</p>
+        <div class="stack"><span>Python</span><span>Multi-agent</span><span>Claude Code</span></div>
+      </a>
+
+      <a class="card rise" href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener">
+        <span class="link">↗</span>
+        <div class="tag">AI · RAG · LOCAL LLM</div>
+        <h3>RAG Chatbot</h3>
+        <p>Fully local retrieval-augmented chatbot powered by Ollama + ChromaDB, with a FastAPI backend and token streaming.</p>
+        <div class="stack"><span>Ollama</span><span>ChromaDB</span><span>FastAPI</span><span>Streaming</span></div>
+      </a>
+
+      <a class="card rise" href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener">
+        <span class="link">↗</span>
+        <div class="tag">ML · COMPUTER VISION</div>
+        <h3>Real-Time Object Detection</h3>
+        <p>YOLOv8n detection API with REST + WebSocket streaming, Apple-MPS acceleration, and a clean web UI.</p>
+        <div class="stack"><span>YOLOv8</span><span>FastAPI</span><span>WebSocket</span><span>MPS</span></div>
+      </a>
+
+      <a class="card rise" href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener">
+        <span class="link">↗</span>
+        <div class="tag">ML · DATA · FORECASTING</div>
+        <h3>Stock Dashboard</h3>
+        <p>Interactive market analytics — real-time data, 20+ technical indicators, and XGBoost / Random-Forest prediction.</p>
+        <div class="stack"><span>Streamlit</span><span>Plotly</span><span>XGBoost</span></div>
+      </a>
+
+      <div class="card rise">
+        <div class="tag">ML · HEALTH DATA · RESEARCH</div>
+        <h3>COVID-19 Vaccine Response Analysis</h3>
+        <p>Ensemble ML over <b>50,000+ vaccination records</b> to surface vaccine–symptom correlations — research with Dr. Yunpeng Cai at SIAT.</p>
+        <div class="stack"><span>Random Forest</span><span>Neural Nets</span><span>Python</span></div>
       </div>
     </div>
-  </section>
 
-  <!-- ROME -->
-  <section id="rome">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> ROME — Chief Surveillance Officer</h2>
-      <div class="rome-bio">
-        <div class="rome-text">
-          <p class="rome-desc">
-            Every dev setup has a lead engineer no one asked for. Mine is <span class="accent">ROME</span> — a male cat
-            of unknown methodology but unquestionable authority, embedded in this workspace since day one.
-          </p>
-          <p class="rome-desc">
-            He does not write code. He does not review PRs. What he does is <span class="accent">watch</span> —
-            with the patient, unblinking intensity of a senior engineer who has seen every bug you are about
-            to make and has decided, professionally, that it is not his problem.
-          </p>
-          <p class="rome-desc">
-            When not stationed behind the monitor, he relocates to covert elevated positions throughout the
-            apartment — windowsills, wardrobe tops, the one shelf I told myself I'd organize — maintaining
-            full-spectrum visual coverage of all development activity. He has never filed a single report.
-          </p>
-          <div class="rome-spec">
-            <div class="rome-spec-row"><span class="spec-key accent">DESIGNATION</span><span class="spec-val">ROME</span></div>
-            <div class="rome-spec-row"><span class="spec-key accent">ROLE</span><span class="spec-val">Chief Surveillance Officer (CSO)</span></div>
-            <div class="rome-spec-row"><span class="spec-key accent">GENDER</span><span class="spec-val">Male</span></div>
-            <div class="rome-spec-row"><span class="spec-key accent">UPTIME</span><span class="spec-val">~20 hrs/day (offline only during meals)</span></div>
-            <div class="rome-spec-row"><span class="spec-key accent">SPECIALTY</span><span class="spec-val">Covert positioning · Silent monitoring · Keyboard QA</span></div>
-            <div class="rome-spec-row"><span class="spec-key accent">BUG REPORTS FILED</span><span class="spec-val">0</span></div>
-          </div>
-        </div>
+  </div>
+</section>
+
+<!-- ============================ RESEARCH (closes Act 03) ============================ -->
+<section class="scene" id="research" data-form="hci">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:44vw;height:44vw;left:-12vw;bottom:-8vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">Research — AI Agents × HCI</p>
+    <h2 class="section-title reveal-line"><span>Do AI agents stay<br/>themselves — and does<br/>it earn our trust?</span></h2>
+    <p class="lead rise">Master of Engineering thesis at the HIT Lab NZ, University of Canterbury — supervised by Dr. Susanne Schmidt &amp; Prof. Robert W. Lindeman. The study is about <b>interactive AI agents</b>; VR is simply the controlled environment it runs in.</p>
+
+    <div class="thesis-card rise">
+      <div class="thesis-title">“One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents.”</div>
+      <p class="thesis-sub">A between-subjects study testing whether an AI agent that keeps a <b>continuous identity</b> — while its embodiment changes across three interaction contexts — builds stronger human relationships than agents that appear as strangers each time.</p>
+      <p class="thesis-sup"><b>Method:</b> ANCOVA · baseline-controlled · validated rapport / connectedness / trust scales</p>
+
+      <div class="stat-row">
+        <div class="stat"><div class="num" data-count="1.22" data-dec="2">0</div><div class="lbl">Cohen's d — large effect on emotional connectedness</div></div>
+        <div class="stat"><div class="num" data-count="26">0</div><div class="lbl">Participants, between-subjects (13 / condition)</div></div>
+        <div class="stat"><div class="num" data-count="3">0</div><div class="lbl">Interaction contexts, one continuous agent</div></div>
+        <div class="stat"><div class="num">4</div><div class="lbl">Multi-modal channels — LLM · VLM · STT · TTS</div></div>
       </div>
-      <div class="rome-gallery">
-        <div class="rome-photo-wrap"><img src="images/rome/rome-1.jpg" alt="Rome on duty" class="rome-photo" /></div>
-        <div class="rome-photo-wrap"><img src="images/rome/rome-2.jpg" alt="Rome surveilling" class="rome-photo" /></div>
-        <div class="rome-photo-wrap"><img src="images/rome/rome-3.jpg" alt="Rome at post" class="rome-photo" /></div>
-        <div class="rome-photo-wrap"><img src="images/rome/rome-4.jpg" alt="Rome monitoring" class="rome-photo" /></div>
-        <div class="rome-photo-wrap"><img src="images/rome/rome-5.jpg" alt="Rome in position" class="rome-photo" /></div>
-        <div class="rome-photo-wrap"><img src="images/rome/rome-6.jpg" alt="Rome on patrol" class="rome-photo" /></div>
+
+      <div class="tag-row">
+        <span>Agent identity continuity</span><span>Human–agent rapport</span><span>Emotional connectedness</span>
+        <span>Credibility &amp; trust</span><span>Multi-modal agents</span><span>Longitudinal interaction</span>
+        <span class="env">Environment: VR</span>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <!-- CONTACT -->
-  <section id="contact">
-    <div class="container">
-      <h2 class="section-title" data-reveal><span class="accent">//</span> CONTACT</h2>
-      <div class="contact-block">
-        <p class="contact-open">Open to opportunities in game development, VR/XR engineering, and AI systems.</p>
-        <div class="contact-links">
-          <a href="mailto:richiejyt@gmail.com" class="contact-item">
-            <span class="contact-label">EMAIL</span>
-            <span class="contact-val">richiejyt@gmail.com</span>
-          </a>
-          <a href="https://github.com/R1chi33333" target="_blank" rel="noopener" class="contact-item">
-            <span class="contact-label">GITHUB</span>
-            <span class="contact-val">R1chi33333</span>
-          </a>
-          <div class="contact-item no-link">
-            <span class="contact-label">LOCATION</span>
-            <span class="contact-val">Auckland, New Zealand</span>
-          </div>
-          <div class="contact-item no-link">
-            <span class="contact-label">PHONE</span>
-            <span class="contact-val">+64 027 292 2743</span>
-          </div>
-        </div>
+<!-- ============================ SKILLS (Act 03 — What I can do) ============================ -->
+<section class="scene" id="skills" data-form="mle">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:38vw;height:38vw;left:-10vw;top:6vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="act-line rise"><span class="n">03</span><span class="t">What I can do</span></div>
+    <h2 class="section-title reveal-line"><span>One stack,<br/>many layers.</span></h2>
+
+    <div class="skill-grid">
+      <div class="skill-col rise">
+        <h4>AI Engineering</h4>
+        <div class="chips"><span>LLM · VLM</span><span>RAG</span><span>Multi-agent systems</span><span>STT · TTS</span><span>Prompt &amp; agent design</span><span>FastAPI / streaming</span></div>
+      </div>
+      <div class="skill-col rise">
+        <h4>Machine Learning</h4>
+        <div class="chips"><span>XGBoost</span><span>SVR</span><span>Neural Networks</span><span>Computer Vision (YOLO)</span><span>Edge inference</span><span>Time-series / signals</span></div>
+      </div>
+      <div class="skill-col rise">
+        <h4>Software &amp; Infra</h4>
+        <div class="chips"><span>Python</span><span>C#</span><span>Java</span><span>SQL</span><span>Swift</span><span>Docker</span><span>Kubernetes</span><span>Linux</span></div>
+      </div>
+      <div class="skill-col rise">
+        <h4>HCI &amp; Research</h4>
+        <div class="chips"><span>User studies</span><span>ANCOVA / stats</span><span>R</span><span>Unity</span><span>Experiment design</span><span>Human–agent interaction</span></div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <footer>
-    <div class="container">
-      <span class="accent">R1chi33333</span> · richiejyt@gmail.com · Auckland, NZ
+<!-- ============================ CONTACT ============================ -->
+<section class="scene" id="contact" data-form="aie">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:52vw;height:52vw;left:50%;top:28%;transform:translateX(-50%);"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise" style="display:block;text-align:center;">Let's build something</p>
+    <div class="contact-big reveal-line"><span>Say&nbsp;<a href="mailto:richiejyt@gmail.com">hello</a>.</span></div>
+    <div style="margin-top:3rem;"><a class="cv-btn" href="Richie-Jin-CV.pdf" download>Download CV ↓</a></div>
+    <div class="contact-links rise">
+      <a href="mailto:richiejyt@gmail.com">richiejyt@gmail.com</a>
+      <a href="https://github.com/R1chi33333" target="_blank" rel="noopener">github.com/R1chi33333</a>
+      <a href="tel:+64272922743">+64 027 292 2743</a>
     </div>
-  </footer>
+    <footer>One soul, many forms · Designed &amp; built by Richie Jin · Auckland, NZ</footer>
+  </div>
+</section>
 
-  <script src="main.js"></script>
+</main>
+
+<!-- video lightbox -->
+<div id="lightbox" class="lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Gameplay video">
+  <button class="lb-close" aria-label="Close video">✕</button>
+  <div class="lb-inner">
+    <video id="lbVideo" controls playsinline preload="none"></video>
+    <div class="lb-cap" id="lbCap"></div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const coarse  = window.matchMedia('(pointer: coarse)').matches;
+  const root = document.documentElement;
+
+  /* ---------- FOUR FORMS PALETTE ---------- */
+  const FORMS = {
+    swe: { rgb:[47,107,255],  hex:'#2f6bff', a2:'#7aa0ff' },
+    mle: { rgb:[12,166,120],  hex:'#0ca678', a2:'#4fd1a8' },
+    aie: { rgb:[124,77,255],  hex:'#7c4dff', a2:'#a78bff' },
+    hci: { rgb:[230,73,128],  hex:'#e64980', a2:'#f48fb1' }
+  };
+  let current = FORMS.aie.rgb.slice();
+  let target  = FORMS.aie.rgb.slice();
+  function setForm(name){
+    const f = FORMS[name] || FORMS.aie;
+    target = f.rgb.slice();
+    root.style.setProperty('--accent', f.hex);
+    root.style.setProperty('--accent-2', f.a2);
+  }
+  const lerp = (a,b,t)=> a+(b-a)*t;
+
+  /* ===========================================================
+     1. AI-AGENT NETWORK BACKGROUND (canvas node-link graph)
+        Nodes = agents; edges form within range; mouse + scroll reactive.
+        Tuned for a LIGHT background (dark-ish coloured nodes & lines).
+     =========================================================== */
+  const canvas = document.getElementById('netCanvas');
+  const ctx = canvas.getContext('2d');
+  let W,H,DPR, nodes=[], mx=-9999, my=-9999, energy=0, pulse=0; // energy=scroll, pulse=transform flash
+  const N = coarse ? 32 : 64;
+  const LINK = coarse ? 150 : 175;   // connection distance (css px)
+
+  function resize(){
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = canvas.width  = innerWidth  * DPR;
+    H = canvas.height = innerHeight * DPR;
+    canvas.style.width = innerWidth+'px';
+    canvas.style.height = innerHeight+'px';
+  }
+  function build(){
+    nodes = [];
+    for(let i=0;i<N;i++){
+      nodes.push({
+        x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+        vx:(Math.random()-0.5)*0.28, vy:(Math.random()-0.5)*0.28,
+        r:(Math.random()*1.6+1.4),
+        soul:false
+      });
+    }
+    // one "soul" node — slightly larger, the constant
+    nodes[0].soul = true; nodes[0].r = 4.2;
+  }
+  resize(); build();
+
+  if(!coarse){
+    window.addEventListener('mousemove', e=>{ mx=e.clientX; my=e.clientY; }, {passive:true});
+    window.addEventListener('mouseout', ()=>{ mx=-9999; my=-9999; }, {passive:true});
+  }
+  window.addEventListener('resize', ()=>{ resize(); build(); }, {passive:true});
+
+  function frame(){
+    for(let i=0;i<3;i++) current[i] = lerp(current[i], target[i], 0.06);
+    const r=Math.round(current[0]), g=Math.round(current[1]), b=Math.round(current[2]);
+    root.style.setProperty('--accent-rgb', `${r},${g},${b}`);
+
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+
+    pulse *= 0.94;                       // transform flash decays each frame
+    const spread = 1 + energy*0.15 + pulse*0.25; // field breathes on scroll + flares on each form morph
+    // update + draw nodes
+    for(const n of nodes){
+      n.x += n.vx*spread; n.y += n.vy*spread;
+      if(n.x< -20) n.x=innerWidth+20; if(n.x>innerWidth+20) n.x=-20;
+      if(n.y< -20) n.y=innerHeight+20; if(n.y>innerHeight+20) n.y=-20;
+      // gentle mouse attraction
+      if(mx>-9000){
+        const dx=mx-n.x, dy=my-n.y, d2=dx*dx+dy*dy;
+        if(d2 < 200*200){ const f=0.00018; n.vx+=dx*f; n.vy+=dy*f; }
+      }
+      // damping toward base speed so it never runs away
+      n.vx*=0.992; n.vy*=0.992;
+    }
+
+    // edges
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const a=nodes[i], c=nodes[j];
+        const dx=a.x-c.x, dy=a.y-c.y; const d=Math.hypot(dx,dy);
+        if(d<LINK){
+          const al=(1-d/LINK)*0.32;
+          ctx.strokeStyle=`rgba(${r},${g},${b},${al})`;
+          ctx.lineWidth = a.soul||c.soul ? 1.1 : 0.6;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(c.x,c.y); ctx.stroke();
+        }
+      }
+      // link to cursor
+      if(mx>-9000){
+        const a=nodes[i]; const d=Math.hypot(a.x-mx,a.y-my);
+        if(d<LINK){ const al=(1-d/LINK)*0.4;
+          ctx.strokeStyle=`rgba(${r},${g},${b},${al})`; ctx.lineWidth=0.7;
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(mx,my); ctx.stroke();
+        }
+      }
+    }
+    // nodes on top
+    for(const n of nodes){
+      // soft halo (flares with each transform pulse)
+      ctx.fillStyle=`rgba(${r},${g},${b},${n.soul?0.18:0.10})`;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r*3.2*(1+pulse*0.6),0,Math.PI*2); ctx.fill();
+      // core dot
+      ctx.fillStyle=`rgba(${r},${g},${b},${n.soul?0.95:0.7})`;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  }
+  if(!reduced){ requestAnimationFrame(frame); }
+  else {
+    // static single frame
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    const [r,g,b]=current;
+    for(const n of nodes){ ctx.fillStyle=`rgba(${r},${g},${b},0.6)`; ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill(); }
+  }
+
+  /* ===========================================================
+     2. SCROLLTRIGGER — reveals, form morph, counters, nav
+     =========================================================== */
+  // nav border on scroll
+  const nav=document.getElementById('nav');
+  window.addEventListener('scroll', ()=>{ nav.classList.toggle('scrolled', window.scrollY>40); }, {passive:true});
+
+  if(typeof gsap!=='undefined' && typeof ScrollTrigger!=='undefined'){
+    gsap.registerPlugin(ScrollTrigger);
+
+    gsap.to('#progress', { width:'100%', ease:'none',
+      scrollTrigger:{ trigger:document.body, start:'top top', end:'bottom bottom', scrub:0.3 }});
+
+    if(!reduced){
+      gsap.utils.toArray('.reveal-line > span').forEach(el=>{
+        gsap.to(el, { y:'0%', duration:1.1, ease:'power4.out',
+          scrollTrigger:{ trigger:el, start:'top 88%' },
+          onComplete:()=>{ if(el.parentElement) el.parentElement.style.overflow='visible'; } // un-clip descenders (g, y, p)
+        });
+      });
+      gsap.utils.toArray('.rise').forEach(el=>{
+        gsap.to(el, { opacity:1, y:0, duration:1, ease:'power3.out', scrollTrigger:{ trigger:el, start:'top 92%' }});
+      });
+      const lit=document.querySelector('[data-light]');
+      if(lit){ gsap.fromTo(lit,{opacity:.4},{opacity:1, ease:'none', scrollTrigger:{ trigger:lit, start:'top 82%', end:'bottom 62%', scrub:true }}); }
+
+      // network energy follows scroll progress
+      gsap.to({}, { scrollTrigger:{ trigger:document.body, start:'top top', end:'bottom bottom', scrub:0.6,
+        onUpdate:self=>{ energy = Math.sin(self.progress*Math.PI); }}});
+    } else {
+      gsap.set('.reveal-line > span',{ y:'0%' });
+      gsap.set('.rise',{ opacity:1, y:0 });
+      document.querySelectorAll('.reveal-line').forEach(l=>l.style.overflow='visible');
+    }
+
+    // FORM MORPH — palette shifts as each section reaches mid-viewport
+    gsap.utils.toArray('section[data-form]').forEach(sec=>{
+      ScrollTrigger.create({ trigger:sec, start:'top 55%', end:'bottom 45%',
+        onEnter:()=>setForm(sec.dataset.form), onEnterBack:()=>setForm(sec.dataset.form) });
+    });
+
+    // number counters
+    gsap.utils.toArray('.num[data-count]').forEach(el=>{
+      const end=parseFloat(el.dataset.count), dec=parseInt(el.dataset.dec||'0',10), o={v:0};
+      gsap.to(o,{ v:end, duration:1.6, ease:'power2.out', scrollTrigger:{ trigger:el, start:'top 88%' },
+        onUpdate:()=>{ el.textContent=o.v.toFixed(dec); }});
+    });
+  } else {
+    document.querySelectorAll('.reveal-line').forEach(l=>l.style.overflow='visible');
+    document.querySelectorAll('.reveal-line > span').forEach(s=>s.style.transform='none');
+    document.querySelectorAll('.rise').forEach(s=>{ s.style.opacity=1; s.style.transform='none'; });
+    document.querySelectorAll('.num[data-count]').forEach(el=>{ el.textContent=parseFloat(el.dataset.count).toFixed(parseInt(el.dataset.dec||'0',10)); });
+  }
+
+  /* ===========================================================
+     3. SIGNATURE TRANSFORM — the headline literally takes many forms.
+        "Many Forms." morphs through the four roles; the whole theme +
+        agent network shift colour and flare on each morph. Runs only
+        while the hero is on-screen.
+     =========================================================== */
+  const fw = document.getElementById('formword');
+  if(fw && !reduced){
+    const ROT = [
+      { t:'Many Forms.',       k:null  },
+      { t:'AI Engineer.',      k:'aie' },
+      { t:'ML Engineer.',      k:'mle' },
+      { t:'Software Engineer.',k:'swe' },
+      { t:'HCI.',              k:'hci' }
+    ];
+    let ri=0, heroVisible=true;
+    function rotStep(){
+      ri = (ri+1) % ROT.length;
+      const cur = ROT[ri];
+      fw.classList.add('swap');                 // blur + lift out
+      setTimeout(()=>{
+        fw.textContent = cur.t;
+        if(cur.k){ fw.classList.add('solid'); fw.style.color = FORMS[cur.k].hex; setForm(cur.k); pulse = 1; }
+        else     { fw.classList.remove('solid'); fw.style.color = ''; setForm('aie'); pulse = 0.6; }
+        fw.classList.remove('swap');            // settle in
+      }, 340);
+    }
+    const timer = setInterval(()=>{ if(heroVisible) rotStep(); }, 2400);
+    const heroEl = document.getElementById('hero');
+    if('IntersectionObserver' in window && heroEl){
+      new IntersectionObserver(es=>{ es.forEach(e=>{ heroVisible = e.isIntersecting; }); }, {threshold:0.2}).observe(heroEl);
+    }
+    window.addEventListener('pagehide', ()=>clearInterval(timer));
+  }
+
+  /* ===========================================================
+     4. VIDEO LIGHTBOX — gameplay clips load only on click
+     =========================================================== */
+  const lb=document.getElementById('lightbox'), lbv=document.getElementById('lbVideo'), lbc=document.getElementById('lbCap');
+  if(lb && lbv){
+    const openLB=(src,cap)=>{ lbv.src=src; lbc.textContent=cap||''; lb.classList.add('open'); lb.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; lbv.play().catch(()=>{}); };
+    const closeLB=()=>{ lb.classList.remove('open'); lb.setAttribute('aria-hidden','true'); lbv.pause(); lbv.removeAttribute('src'); lbv.load(); document.body.style.overflow=''; };
+    document.querySelectorAll('.gthumb').forEach(t=>t.addEventListener('click',()=>openLB(t.dataset.video, t.dataset.title)));
+    const cl=lb.querySelector('.lb-close'); if(cl) cl.addEventListener('click',closeLB);
+    lb.addEventListener('click', e=>{ if(e.target===lb) closeLB(); });
+    window.addEventListener('keydown', e=>{ if(e.key==='Escape' && lb.classList.contains('open')) closeLB(); });
+  }
+})();
+</script>
 </body>
 </html>
