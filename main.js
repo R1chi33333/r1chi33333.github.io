@@ -220,7 +220,7 @@
   if(lb && lbv){
     const openLB=(src,cap)=>{ lbv.src=src; lbc.textContent=cap||''; lb.classList.add('open'); lb.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; lbv.play().catch(()=>{}); };
     const closeLB=()=>{ lb.classList.remove('open'); lb.setAttribute('aria-hidden','true'); lbv.pause(); lbv.removeAttribute('src'); lbv.load(); document.body.style.overflow=''; };
-    document.querySelectorAll('.gthumb').forEach(t=>t.addEventListener('click',()=>openLB(t.dataset.video, t.dataset.title)));
+    document.querySelectorAll('.gthumb[data-video]').forEach(t=>t.addEventListener('click',()=>openLB(t.dataset.video, t.dataset.title)));
     const cl=lb.querySelector('.lb-close'); if(cl) cl.addEventListener('click',closeLB);
     lb.addEventListener('click', e=>{ if(e.target===lb) closeLB(); });
     window.addEventListener('keydown', e=>{ if(e.key==='Escape' && lb.classList.contains('open')) closeLB(); });

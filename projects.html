@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ============================================================================
+  ALL PROJECTS  —  Yutong "Richie" Jin
+  Gallery page: every project with a screenshot (or gameplay video), grouped
+  by form — HCI / SWE / MLE. Shares style.css + main.js with index.html.
+  ============================================================================
+-->
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Projects — Yutong (Richie) Jin</title>
+<meta name="description" content="All projects by Yutong (Richie) Jin — VR embodied agents (HCI), live full-stack products (SWE), and evaluated ML/RAG systems (MLE)." />
+<meta name="author" content="Yutong (Richie) Jin" />
+<meta property="og:title" content="Projects — Yutong (Richie) Jin" />
+<meta property="og:description" content="VR embodied agents, live full-stack products, and evaluated ML/RAG systems — with screenshots and live demos." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<!-- live AI-agent network background + accent wash -->
+<div id="aura" data-depth="0" aria-hidden="true"></div>
+<div id="net" data-depth="1" aria-hidden="true"><canvas id="netCanvas"></canvas></div>
+
+<div id="progress" aria-hidden="true"></div>
+
+<nav id="nav">
+  <a class="brand" href="index.html">RICHIE<i>·</i>JIN</a>
+  <div class="nav-right">
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="#hci">HCI</a>
+      <a href="#swe">SWE</a>
+      <a href="#mle">MLE</a>
+      <a href="index.html#contact">Contact</a>
+    </div>
+    <a class="nav-cv" href="Richie-Jin-CV.pdf" download><i></i>Download CV</a>
+  </div>
+</nav>
+
+<main id="main-content">
+
+<!-- ============================ GALLERY HEAD ============================ -->
+<section class="scene gallery-head" data-form="aie">
+  <div class="wrap depth-4" data-depth="4">
+    <p class="eyebrow rise">All Projects</p>
+    <h2 class="section-title reveal-line"><span>Every form,<br/>in detail.</span></h2>
+    <p class="games-sub rise">Fourteen projects across three forms — VR embodied agents, live full-stack products, and evaluated ML systems. Click any screenshot to open the live demo; click a video card to watch gameplay.</p>
+  </div>
+</section>
+
+<!-- ============================ HCI ============================ -->
+<section class="scene gallery-section" id="hci" data-form="hci">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:42vw;height:42vw;left:-10vw;top:4vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="group-label rise">HCI · VR games &amp; embodied agents</div>
+    <p class="games-sub rise">For my master's thesis I rebuilt three open-source VR games into playable experiences — each driven by a local LLM (Llama 3.2 + speech), one continuous agent taking three very different forms.</p>
+
+    <div class="games-grid">
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/fireboy.mp4" data-title="FireBoy — abstract agent · VR escape room" aria-label="Play FireBoy gameplay video">
+          <img src="media/fireboy.jpg" alt="FireBoy VR escape room gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">ABSTRACT AGENT · ESCAPE ROOM</div>
+          <h3>FireBoy</h3>
+          <p>An animated flame agent I built into a VR escape room. Gaze-activated, it tracks your progress and gives adaptive, spoken hints through a multi-step potion puzzle.</p>
+          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>STT · TTS</span><span>Gaze</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+        </div>
+      </article>
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/oppy.mp4" data-title="Oppy — embodied agent · co-op VR shooter" aria-label="Play Oppy gameplay video">
+          <img src="media/oppy.jpg" alt="Oppy embodied agent in The World Beyond gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">EMBODIED AGENT · CO-OP SHOOTER</div>
+          <h3>Oppy</h3>
+          <p>I turned Meta's alien character “Oppy” into an embodied teammate. Only Oppy can see the hidden ammo, so players must rely on it — real task dependency, not just chat.</p>
+          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>Quest 3</span><span>STT · TTS</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+        </div>
+      </article>
+      <article class="card gcard rise">
+        <button class="gthumb" data-video="media/whisperer.mp4" data-title="Whisperer — voice-only agent · navigation game" aria-label="Play Whisperer gameplay video">
+          <img src="media/whisperer.jpg" alt="Whisperer voice-only agent navigation gameplay" loading="lazy" />
+          <span class="playbadge" aria-hidden="true">▶</span>
+        </button>
+        <div class="gbody">
+          <div class="tag">VOICE-ONLY AGENT · NAVIGATION</div>
+          <h3>Whisperer</h3>
+          <p>A fully invisible, voice-only AI guide in a gesture-and-voice game. It walks players through five hands-on tasks with no visual presence at all.</p>
+          <div class="stack"><span>Unity</span><span>Voice SDK</span><span>Llama 3.2</span><span>STT · TTS</span></div>
+          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ SWE ============================ -->
+<section class="scene gallery-section" id="swe" data-form="swe">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:42vw;height:42vw;right:-12vw;top:8vh;left:auto;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="group-label rise">SWE · products &amp; live tools</div>
+    <p class="games-sub rise">Shipped software you can open right now — tested, released, and monitored. Five of the six are live on free-tier infrastructure with CI/CD and semantic releases.</p>
+
+    <div class="games-grid">
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://nz-bank-parser.vercel.app" target="_blank" rel="noopener" aria-label="Open nz-bank-parser live playground">
+          <img src="media/shots/nz-bank-parser.jpg" alt="nz-bank-parser playground parsing an ANZ CSV export" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · OPEN-SOURCE LIBRARY · NPM</div>
+          <h3>nz-bank-parser</h3>
+          <p>Zero-dependency TypeScript parser for CSV exports from the four big NZ banks — one normalised transaction format, on npm, with a live in-browser playground.</p>
+          <div class="stack"><span>TypeScript</span><span>npm</span><span>Vitest</span><span>semantic-release</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://nz-bank-parser.vercel.app" target="_blank" rel="noopener">Live ↗</a>
+            <a class="gcode" href="https://github.com/R1chi33333/nz-bank-parser" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://flatsplit-nz.vercel.app" target="_blank" rel="noopener" aria-label="Open FlatSplit live demo">
+          <img src="media/shots/flatsplit.jpg" alt="FlatSplit settlement view showing minimum transfers" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · FULL-STACK PRODUCT · LIVE</div>
+          <h3>FlatSplit</h3>
+          <p>Expense splitting for NZ flats — three split methods, minimum-transfer settlement, and bank CSV import. One-click demo, no signup.</p>
+          <div class="stack"><span>Next.js</span><span>Postgres</span><span>Drizzle</span><span>NextAuth</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://flatsplit-nz.vercel.app" target="_blank" rel="noopener">Live ↗</a>
+            <a class="gcode" href="https://github.com/R1chi33333/flatsplit" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://nz-housing-observatory.vercel.app" target="_blank" rel="noopener" aria-label="Open NZ Housing Observatory live map">
+          <img src="media/shots/housing-observatory.jpg" alt="NZ Housing Observatory choropleth map of house prices" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · DATA ENGINEERING · LIVE</div>
+          <h3>NZ Housing Observatory</h3>
+          <p>46 years of NZ house prices and rents on an interactive choropleth map — a tested pipeline over open government data, refreshed monthly by CI.</p>
+          <div class="stack"><span>React</span><span>MapLibre</span><span>Recharts</span><span>GitHub Actions</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://nz-housing-observatory.vercel.app" target="_blank" rel="noopener">Live ↗</a>
+            <a class="gcode" href="https://github.com/R1chi33333/nz-housing-observatory" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://statusping-production.up.railway.app/status/portfolio" target="_blank" rel="noopener" aria-label="Open StatusPing public status page">
+          <img src="media/shots/statusping.jpg" alt="StatusPing public status page with uptime bars" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · SELF-HOSTED · LIVE</div>
+          <h3>StatusPing</h3>
+          <p>Uptime monitoring in one container — Fastify + SQLite, webhook alerts, and a public status page that watches the other three projects here.</p>
+          <div class="stack"><span>Fastify</span><span>SQLite</span><span>Docker</span><span>Railway</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://statusping-production.up.railway.app/status/portfolio" target="_blank" rel="noopener">Live ↗</a>
+            <a class="gcode" href="https://github.com/R1chi33333/statusping" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener" aria-label="Open Stock Dashboard repository">
+          <img src="media/shots/stock-dashboard.jpg" alt="Stock Dashboard technical analysis view with indicators" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · DATA · FORECASTING</div>
+          <h3>Stock Dashboard</h3>
+          <p>Interactive market analytics — real-time data, 20+ technical indicators, and XGBoost / Random-Forest prediction.</p>
+          <div class="stack"><span>Streamlit</span><span>Plotly</span><span>XGBoost</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener" aria-label="Open SmartBoard repository">
+          <img src="media/shots/smartboard.jpg" alt="SmartBoard Kanban board with AI task modal" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">SWE · FULL-STACK · REAL-TIME</div>
+          <h3>SmartBoard</h3>
+          <p>AI-powered project management — a drag-and-drop Kanban board with real-time WebSocket sync and streaming task descriptions from a local Ollama LLM.</p>
+          <div class="stack"><span>React 18</span><span>FastAPI</span><span>PostgreSQL</span><span>WebSocket</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ MLE ============================ -->
+<section class="scene gallery-section" id="mle" data-form="mle">
+  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:42vw;height:42vw;left:-10vw;top:10vh;"></div></div>
+  <div class="wrap depth-4" data-depth="4">
+    <div class="group-label rise">MLE · AI &amp; machine learning</div>
+    <p class="games-sub rise">Applied ML with the receipts — retrieval systems with published evals, local-first LLM services, and computer vision that streams in real time.</p>
+
+    <div class="games-grid">
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://tenancymate.vercel.app" target="_blank" rel="noopener" aria-label="Open TenancyMate live demo">
+          <img src="media/shots/tenancymate.jpg" alt="TenancyMate answering a tenancy question with cited sections" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">MLE · RAG · EVAL-DRIVEN · LIVE</div>
+          <h3>TenancyMate</h3>
+          <p>NZ tenancy law Q&amp;A over the Residential Tenancies Act — every claim cited to its section, zero hallucinated citations across a 47-question published eval.</p>
+          <div class="stack"><span>RAG</span><span>pgvector</span><span>Next.js</span><span>transformers.js</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://tenancymate.vercel.app" target="_blank" rel="noopener">Live ↗</a>
+            <a class="gcode" href="https://github.com/R1chi33333/tenancymate" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener" aria-label="Open RAG Chatbot repository">
+          <img src="media/shots/rag-chatbot.jpg" alt="RAG Chatbot FastAPI docs with the chat endpoint expanded" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">AI · RAG · LOCAL LLM</div>
+          <h3>RAG Chatbot</h3>
+          <p>Fully local retrieval-augmented chatbot powered by Ollama + ChromaDB, with a FastAPI backend and token streaming.</p>
+          <div class="stack"><span>Ollama</span><span>ChromaDB</span><span>FastAPI</span><span>Streaming</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener" aria-label="Open Real-Time Object Detection repository">
+          <img src="media/shots/object-detection.jpg" alt="YOLOv8 detection with a labelled bounding box" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">ML · COMPUTER VISION</div>
+          <h3>Real-Time Object Detection</h3>
+          <p>YOLOv8n detection API with REST + WebSocket streaming, Apple-MPS acceleration, and a clean web UI.</p>
+          <div class="stack"><span>YOLOv8</span><span>FastAPI</span><span>WebSocket</span><span>MPS</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <article class="card gcard rise">
+        <a class="gthumb" href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener" aria-label="Open Job Hunter repository">
+          <img src="media/shots/job-hunter.jpg" alt="Job Hunter multi-agent pipeline diagram in a terminal" loading="lazy" width="1280" height="720" />
+          <span class="visitbadge" aria-hidden="true">↗</span>
+        </a>
+        <div class="gbody">
+          <div class="tag">AI · MULTI-AGENT</div>
+          <h3>Job Hunter</h3>
+          <p>Multi-agent job-hunting automation orchestrated with Claude Code — runs end-to-end with no API key required.</p>
+          <div class="stack"><span>Python</span><span>Multi-agent</span><span>Claude Code</span></div>
+          <div class="card-links">
+            <a class="gcode" href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener">Code ↗</a>
+          </div>
+        </div>
+      </article>
+
+      <div class="card rise">
+        <div class="tag">ML · HEALTH DATA · RESEARCH</div>
+        <h3>COVID-19 Vaccine Response Analysis</h3>
+        <p>Ensemble ML over <b>50,000+ vaccination records</b> to surface vaccine–symptom correlations — research with Dr. Yunpeng Cai at SIAT.</p>
+        <div class="stack"><span>Random Forest</span><span>Neural Nets</span><span>Python</span></div>
+      </div>
+    </div>
+
+    <footer>One soul, many forms · Designed &amp; built by Richie Jin · Auckland, NZ</footer>
+  </div>
+</section>
+
+</main>
+
+<div id="lightbox" class="lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Gameplay video">
+  <button class="lb-close" aria-label="Close video">✕</button>
+  <div class="lb-inner">
+    <video id="lbVideo" controls playsinline preload="none"></video>
+    <div class="lb-cap" id="lbCap"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="main.js"></script>
+
+</body>
+</html>

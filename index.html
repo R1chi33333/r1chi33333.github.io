@@ -53,7 +53,7 @@
     <div class="links">
       <a href="#forms">Forms</a>
       <a href="#experience">Experience</a>
-      <a href="#projects">Work</a>
+      <a href="projects.html">Work</a>
       <a href="#research">Research</a>
       <a href="#skills">Skills</a>
       <a href="#contact">Contact</a>
@@ -205,136 +205,41 @@
   <div class="wrap depth-4" data-depth="4">
     <p class="eyebrow rise">Selected Work</p>
     <h2 class="section-title reveal-line"><span>Things I built<br/>because I had to.</span></h2>
-    <p class="games-sub rise">For my master's thesis I rebuilt three open-source VR games into playable experiences — each driven by a local LLM (Llama 3.2 + speech), one continuous agent taking three very different forms.</p>
+    <p class="games-sub rise">Fourteen projects across three forms. Pick a form to see every project with screenshots, live demos, and gameplay video.</p>
 
-    <div class="group-label rise">HCI · VR games &amp; embodied agents</div>
-    <div class="games-grid">
-      <article class="card gcard rise">
-        <button class="gthumb" data-video="media/fireboy.mp4" data-title="FireBoy — abstract agent · VR escape room" aria-label="Play FireBoy gameplay video">
-          <img src="media/fireboy.jpg" alt="FireBoy VR escape room gameplay" loading="lazy" />
-          <span class="playbadge" aria-hidden="true">▶</span>
-        </button>
+    <div class="cat-grid">
+      <a class="card cat-tile rise" data-cat="hci" href="projects.html#hci">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="gthumb"><img src="media/oppy.jpg" alt="Oppy embodied agent in VR" loading="lazy" /></span>
         <div class="gbody">
-          <div class="tag">ABSTRACT AGENT · ESCAPE ROOM</div>
-          <h3>FireBoy</h3>
-          <p>An animated flame agent I built into a VR escape room. Gaze-activated, it tracks your progress and gives adaptive, spoken hints through a multi-step potion puzzle.</p>
-          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>STT · TTS</span><span>Gaze</span></div>
-          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+          <div class="count">3 PROJECTS · GAMEPLAY VIDEO</div>
+          <h3>HCI</h3>
+          <p>VR games with LLM-driven embodied agents — my master's thesis, playable.</p>
+          <span class="go">Explore →</span>
         </div>
-      </article>
-      <article class="card gcard rise">
-        <button class="gthumb" data-video="media/oppy.mp4" data-title="Oppy — embodied agent · co-op VR shooter" aria-label="Play Oppy gameplay video">
-          <img src="media/oppy.jpg" alt="Oppy embodied agent in The World Beyond gameplay" loading="lazy" />
-          <span class="playbadge" aria-hidden="true">▶</span>
-        </button>
+      </a>
+
+      <a class="card cat-tile rise" data-cat="swe" href="projects.html#swe">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="gthumb"><img src="media/shots/flatsplit.jpg" alt="FlatSplit settlement view" loading="lazy" /></span>
         <div class="gbody">
-          <div class="tag">EMBODIED AGENT · CO-OP SHOOTER</div>
-          <h3>Oppy</h3>
-          <p>I turned Meta's alien character “Oppy” into an embodied teammate. Only Oppy can see the hidden ammo, so players must rely on it — real task dependency, not just chat.</p>
-          <div class="stack"><span>Unity</span><span>Llama 3.2</span><span>Quest 3</span><span>STT · TTS</span></div>
-          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+          <div class="count">6 PROJECTS · 4 LIVE</div>
+          <h3>SWE</h3>
+          <p>Shipped products and tools — tested, released, and monitored on live infrastructure.</p>
+          <span class="go">Explore →</span>
         </div>
-      </article>
-      <article class="card gcard rise">
-        <button class="gthumb" data-video="media/whisperer.mp4" data-title="Whisperer — voice-only agent · navigation game" aria-label="Play Whisperer gameplay video">
-          <img src="media/whisperer.jpg" alt="Whisperer voice-only agent navigation gameplay" loading="lazy" />
-          <span class="playbadge" aria-hidden="true">▶</span>
-        </button>
+      </a>
+
+      <a class="card cat-tile rise" data-cat="mle" href="projects.html#mle">
+        <span class="bar" aria-hidden="true"></span>
+        <span class="gthumb"><img src="media/shots/tenancymate.jpg" alt="TenancyMate cited answer view" loading="lazy" /></span>
         <div class="gbody">
-          <div class="tag">VOICE-ONLY AGENT · NAVIGATION</div>
-          <h3>Whisperer</h3>
-          <p>A fully invisible, voice-only AI guide in a gesture-and-voice game. It walks players through five hands-on tasks with no visual presence at all.</p>
-          <div class="stack"><span>Unity</span><span>Voice SDK</span><span>Llama 3.2</span><span>STT · TTS</span></div>
-          <a class="gcode" href="https://github.com/R1chi33333/Virtual-Agents" target="_blank" rel="noopener">Code ↗</a>
+          <div class="count">5 PROJECTS · 1 LIVE</div>
+          <h3>MLE</h3>
+          <p>RAG with published evals, local LLM services, and real-time computer vision.</p>
+          <span class="go">Explore →</span>
         </div>
-      </article>
-    </div>
-
-
-    <div class="group-label rise">SWE · products &amp; live tools</div>
-    <div class="proj-grid">
-      <a class="card rise" href="https://statusping-production.up.railway.app/status/portfolio" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">SWE · SELF-HOSTED · LIVE</div>
-        <h3>StatusPing</h3>
-        <p>Uptime monitoring in one container — Fastify + SQLite, webhook alerts, and a public status page that watches the other three projects here.</p>
-        <div class="stack"><span>Fastify</span><span>SQLite</span><span>Docker</span><span>Railway</span></div>
       </a>
-
-      <a class="card rise" href="https://nz-housing-observatory.vercel.app" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">SWE · DATA ENGINEERING · LIVE</div>
-        <h3>NZ Housing Observatory</h3>
-        <p>46 years of NZ house prices and rents on an interactive choropleth map — a tested pipeline over open government data, refreshed monthly by CI.</p>
-        <div class="stack"><span>React</span><span>MapLibre</span><span>Recharts</span><span>GitHub Actions</span></div>
-      </a>
-
-      <a class="card rise" href="https://flatsplit-nz.vercel.app" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">SWE · FULL-STACK PRODUCT · LIVE</div>
-        <h3>FlatSplit</h3>
-        <p>Expense splitting for NZ flats — three split methods, minimum-transfer settlement, and bank CSV import. One-click demo, no signup.</p>
-        <div class="stack"><span>Next.js</span><span>Postgres</span><span>Drizzle</span><span>NextAuth</span></div>
-      </a>
-
-      <a class="card rise" href="https://nz-bank-parser.vercel.app" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">SWE · OPEN-SOURCE LIBRARY · NPM</div>
-        <h3>nz-bank-parser</h3>
-        <p>Zero-dependency TypeScript parser for CSV exports from the four big NZ banks — one normalised transaction format, on npm, with a live in-browser playground.</p>
-        <div class="stack"><span>TypeScript</span><span>npm</span><span>Vitest</span><span>semantic-release</span></div>
-      </a>
-
-
-      <a class="card rise" href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">SWE · DATA · FORECASTING</div>
-        <h3>Stock Dashboard</h3>
-        <p>Interactive market analytics — real-time data, 20+ technical indicators, and XGBoost / Random-Forest prediction.</p>
-        <div class="stack"><span>Streamlit</span><span>Plotly</span><span>XGBoost</span></div>
-      </a>
-    </div>
-
-    <div class="group-label rise">MLE · AI &amp; machine learning</div>
-    <div class="proj-grid">
-      <a class="card rise" href="https://tenancymate.vercel.app" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">MLE · RAG · EVAL-DRIVEN · LIVE</div>
-        <h3>TenancyMate</h3>
-        <p>NZ tenancy law Q&amp;A over the Residential Tenancies Act — every claim cited to its section, zero hallucinated citations across a 47-question published eval.</p>
-        <div class="stack"><span>RAG</span><span>pgvector</span><span>Next.js</span><span>transformers.js</span></div>
-      </a>
-
-      <a class="card rise" href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">AI · MULTI-AGENT</div>
-        <h3>Job Hunter</h3>
-        <p>Multi-agent job-hunting automation orchestrated with Claude Code — runs end-to-end with no API key required.</p>
-        <div class="stack"><span>Python</span><span>Multi-agent</span><span>Claude Code</span></div>
-      </a>
-
-      <a class="card rise" href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">AI · RAG · LOCAL LLM</div>
-        <h3>RAG Chatbot</h3>
-        <p>Fully local retrieval-augmented chatbot powered by Ollama + ChromaDB, with a FastAPI backend and token streaming.</p>
-        <div class="stack"><span>Ollama</span><span>ChromaDB</span><span>FastAPI</span><span>Streaming</span></div>
-      </a>
-
-      <a class="card rise" href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener">
-        <span class="link">↗</span>
-        <div class="tag">ML · COMPUTER VISION</div>
-        <h3>Real-Time Object Detection</h3>
-        <p>YOLOv8n detection API with REST + WebSocket streaming, Apple-MPS acceleration, and a clean web UI.</p>
-        <div class="stack"><span>YOLOv8</span><span>FastAPI</span><span>WebSocket</span><span>MPS</span></div>
-      </a>
-
-      <div class="card rise">
-        <div class="tag">ML · HEALTH DATA · RESEARCH</div>
-        <h3>COVID-19 Vaccine Response Analysis</h3>
-        <p>Ensemble ML over <b>50,000+ vaccination records</b> to surface vaccine–symptom correlations — research with Dr. Yunpeng Cai at SIAT.</p>
-        <div class="stack"><span>Random Forest</span><span>Neural Nets</span><span>Python</span></div>
-      </div>
     </div>
 
   </div>
