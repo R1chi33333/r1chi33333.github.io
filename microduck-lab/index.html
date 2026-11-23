@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Microduck Lab</title>
+<meta name="description" content="Play with, read the mind of, and rebuild a 25 cm robot duck.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --bg: #000; --fg: #F5F5F7; --muted: #A1A1A6; --dim: #6E6E73;
+  --cyan: #64D2FF; --violet: #BF5AF2; --orange: #FF9F0A; --red: #FF453A; --green: #30D158;
+  --glass: rgba(29, 29, 31, 0.72); --glass2: rgba(29, 29, 31, 0.88); --line: rgba(255, 255, 255, 0.12);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --gut: max(16px, env(safe-area-inset-left, 0px));
+  --top: calc(env(safe-area-inset-top, 0px) + 20px);
+  --bot: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font); overflow: hidden; -webkit-font-smoothing: antialiased; overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; outline: none; }
+#stage canvas.dragging { cursor: grabbing; }
+#stage canvas.intent { cursor: crosshair; }
+button { font-family: var(--font); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.glass { background: var(--glass); border: 1px solid var(--line); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); }
+.hud { position: fixed; inset: 0; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.hidden { display: none !important; }
+
+/* brand */
+.brand { position: absolute; top: var(--top); left: calc(var(--gut) + 8px); pointer-events: none; max-width: 300px; }
+.brand h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.brand p { margin: 4px 0 0; font-size: 13px; color: var(--muted); line-height: 1.35; }
+
+/* mode tabs */
+.tabs { position: absolute; top: var(--top); left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
+.tabs button, .layers button, .chip { font: 500 14px/1 var(--font); color: var(--muted); background: transparent; border: 0; border-radius: 999px; padding: 0 16px; min-height: 36px; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 8px; transition: background .25s ease, color .25s ease; }
+.tabs button[aria-pressed="true"], .layers button[aria-pressed="true"] { background: rgba(255,255,255,.14); color: var(--fg); }
+.tabs button:hover, .layers button:hover { color: var(--fg); }
+
+/* layer switch */
+.layers { position: absolute; left: 50%; bottom: var(--bot); transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
+.layers .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.layers button[data-layer="surface"] .dot { background: var(--fg); }
+.layers button[data-layer="xray"] .dot { background: var(--cyan); }
+.layers button[data-layer="mind"] .dot { background: var(--violet); }
+
+/* top-right tools */
+.tools { position: absolute; top: var(--top); right: var(--gut); display: flex; gap: 8px; align-items: center; }
+.chip { min-height: 36px; padding: 0 14px; font-size: 13px; color: var(--muted); border: 1px solid var(--line); background: var(--glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
+.chip[aria-pressed="true"] { color: var(--fg); border-color: rgba(191,90,242,.6); background: rgba(191,90,242,.18); }
+.chip.icon-btn[aria-pressed] { color: var(--fg); border-color: var(--line); background: var(--glass); }
+.chip.icon-btn[aria-pressed="false"] { color: var(--dim); }
+.chip.safety[aria-pressed="true"] { border-color: rgba(48,209,88,.5); background: rgba(48,209,88,.14); }
+.chip .sm-lbl { display: none; }
+.chip .led { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.chip[aria-pressed="true"] .led { background: var(--violet); box-shadow: 0 0 8px var(--violet); }
+.chip.safety[aria-pressed="true"] .led { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.icon-btn { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; }
+.icon-btn svg { width: 16px; height: 16px; }
+
+/* help + credit (bottom-left) */
+.help { position: absolute; left: calc(var(--gut) + 8px); bottom: calc(var(--bot) + 44px); border-radius: 14px; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.9; transition: opacity .8s ease; white-space: nowrap; }
+.help.fade { opacity: 0; pointer-events: none; }
+.help b { color: var(--fg); font-weight: 600; }
+.help kbd { font: 600 11px/1 var(--font); color: var(--fg); background: rgba(255,255,255,.1); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; margin-right: 2px; }
+.credit { position: absolute; left: calc(var(--gut) + 8px); bottom: var(--bot); font-size: 11px; line-height: 1.4; color: var(--dim); max-width: 270px; }
+.credit a { color: var(--muted); text-decoration: underline; text-decoration-color: rgba(255,255,255,.25); text-underline-offset: 2px; }
+
+/* toast + pulse */
+.toast { position: absolute; top: calc(var(--top) + 56px); left: 50%; transform: translate(-50%, -8px); opacity: 0; border-radius: 14px; padding: 10px 16px; font-size: 14px; display: flex; align-items: center; gap: 10px; transition: opacity .3s ease, transform .3s ease; pointer-events: none; max-width: calc(100vw - 32px); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,159,10,.2); color: var(--orange); font-weight: 700; font-size: 13px; flex: none; }
+.toast.violet .ic { background: rgba(191,90,242,.2); color: var(--violet); }
+.toast small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.pulse { position: fixed; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 0 2px rgba(255,159,10,.0), inset 0 0 90px rgba(255,159,10,.0); }
+.pulse.go { animation: pulse .7s ease-out; }
+@keyframes pulse { 0% { opacity: 1; box-shadow: inset 0 0 0 3px rgba(255,159,10,.75), inset 0 0 120px rgba(255,159,10,.35); } 100% { opacity: 0; box-shadow: inset 0 0 0 1px rgba(255,159,10,0), inset 0 0 40px rgba(255,159,10,0); } }
+body.shake #stage { animation: shake .28s ease-out; }
+@keyframes shake { 20% { transform: translate(3px, -1px); } 45% { transform: translate(-3px, 1px); } 70% { transform: translate(1.5px, 0); } 100% { transform: none; } }
+
+/* side panel */
+.panel { position: absolute; top: calc(var(--top) + 56px); right: var(--gut); width: 320px; max-height: calc(100vh - var(--top) - 56px - var(--bot) - 60px); overflow: auto; border-radius: 20px; padding: 18px; scrollbar-width: thin; }
+.panel h2 { margin: 0 0 4px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.panel .sub { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.panel .sec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.panel .label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; }
+.btn { font: 500 13px/1 var(--font); border-radius: 999px; min-height: 36px; padding: 0 14px; cursor: pointer; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--fg); display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: rgba(255,255,255,.12); }
+.btn.primary { background: var(--fg); color: #000; border-color: var(--fg); }
+.btn.primary:hover { background: #fff; }
+.btn.violet { background: rgba(191,90,242,.2); border-color: rgba(191,90,242,.55); }
+.btn[disabled] { opacity: .4; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* mind panel */
+.gauge-wrap { display: flex; gap: 14px; align-items: center; }
+.gauge { width: 112px; height: 74px; flex: none; }
+.gauge .num { font: 700 22px/1 var(--font); fill: var(--fg); }
+.gauge .cap { font: 500 9.5px/1 var(--font); fill: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.stat { font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+.stat b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.state-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: rgba(191,90,242,.18); color: #E1B8F7; margin-top: 2px; }
+.state-pill.warn { background: rgba(255,159,10,.18); color: #FFC56B; }
+.sense { display: flex; gap: 10px; }
+.sense figure { margin: 0; flex: 1; min-width: 0; }
+.sense figcaption { font-size: 10.5px; color: var(--dim); margin-top: 5px; letter-spacing: .02em; }
+#tof { width: 100%; aspect-ratio: 1; border-radius: 10px; background: #0b0b0d; display: block; border: 1px solid var(--line); }
+#eyeBox { width: 100%; aspect-ratio: 1; border-radius: 10px; background: #0b0b0d; border: 1px solid var(--line); display: block; }
+.rate { display: flex; gap: 14px; align-items: stretch; }
+.rate .vs { position: relative; width: 44px; height: 200px; border-radius: 22px; background: linear-gradient(to top, rgba(191,90,242,.2), rgba(255,159,10,.45)); border: 1px solid var(--line); touch-action: none; cursor: ns-resize; flex: none; }
+.rate .vs i { position: absolute; left: 4px; right: 4px; height: 34px; border-radius: 17px; background: var(--fg); box-shadow: 0 4px 14px rgba(0,0,0,.5); display: grid; place-items: center; font: 700 12px/1 var(--font); color: #000; font-style: normal; }
+.rate .side { display: flex; flex-direction: column; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.ring { width: 46px; height: 46px; }
+canvas.chart { width: 100%; height: 150px; display: block; }
+.score { font: 700 30px/1 var(--font); letter-spacing: -0.02em; }
+.legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+/* garage panel */
+.counter { display: flex; align-items: baseline; gap: 8px; }
+.counter .big { font: 700 30px/1 var(--font); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--fg), var(--violet)); transition: width .5s ease; }
+.parts { list-style: none; margin: 0; padding: 0; }
+.parts li button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; font: 500 13px/1.2 var(--font); color: var(--fg); background: transparent; border: 0; border-radius: 10px; padding: 0 10px; min-height: 34px; cursor: pointer; }
+.parts li button:hover { background: rgba(255,255,255,.06); }
+.parts li button[aria-pressed="true"] { background: rgba(100,210,255,.14); }
+.parts .st { font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+.parts .st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+.parts .st.new { color: #FFE2B8; }
+.parts .st.new::before { background: #FFE2B8; box-shadow: 0 0 6px #FFE2B8; }
+details.servos summary { cursor: pointer; font: 500 13px/1 var(--font); color: var(--muted); padding: 10px; list-style: none; display: flex; justify-content: space-between; }
+details.servos summary::-webkit-details-marker { display: none; }
+.swatches { display: flex; gap: 8px; }
+.swatches button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; position: relative; }
+.swatches button[aria-pressed="true"] { border-color: var(--fg); }
+.swatches button span { position: absolute; inset: 9px; border-radius: 50%; }
+select { font: 500 13px/1 var(--font); color: var(--fg); background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 999px; min-height: 36px; padding: 0 12px; }
+select option { background: #1d1d1f; }
+.mem { list-style: none; margin: 0; padding: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.mem li { padding: 5px 0 5px 16px; position: relative; }
+.mem li::before { content: ""; position: absolute; left: 2px; top: 11px; width: 6px; height: 6px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 6px var(--violet); }
+.mem li.empty::before { background: var(--dim); box-shadow: none; }
+.serial { font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--fg); background: rgba(255,255,255,.08); padding: 4px 7px; border-radius: 6px; }
+
+/* dialogs / prompts */
+.prompt { position: absolute; left: 50%; bottom: calc(var(--bot) + 64px); transform: translate(-50%, 12px); opacity: 0; pointer-events: none; width: min(420px, calc(100vw - 32px)); border-radius: 20px; padding: 18px; transition: opacity .35s ease, transform .35s ease; }
+.prompt.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.prompt h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.prompt p { margin: 0 0 12px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.prompt .x { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: var(--muted); cursor: pointer; font-size: 16px; }
+input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
+.scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin: -2px 0 10px; }
+.choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+.choice button { min-height: 64px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--fg); cursor: pointer; text-align: left; padding: 10px 12px; font: 500 13px/1.3 var(--font); }
+.choice button b { display: block; font-size: 15px; margin-bottom: 2px; }
+.choice button small { color: var(--muted); }
+.choice button:hover { background: rgba(255,255,255,.12); }
+.tag3d { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); font: 700 13px/1 var(--font); color: #000; background: var(--fg); border-radius: 999px; padding: 6px 10px; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.tag3d small { font-weight: 500; color: #333; margin-left: 4px; }
+
+/* welcome */
+.welcome { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.35); transition: opacity .5s ease; z-index: 5; pointer-events: auto; }
+.welcome.away { opacity: 0; pointer-events: none; }
+.welcome .card { width: min(400px, calc(100vw - 32px)); border-radius: 22px; padding: 26px; }
+.welcome h2 { margin: 0 0 8px; font-size: 24px; letter-spacing: -0.02em; }
+.welcome p { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.welcome input[type=text] { width: 100%; font: 500 16px/1 var(--font); color: var(--fg); background: rgba(255,255,255,.08); border: 1px solid var(--line); border-radius: 12px; min-height: 46px; padding: 0 14px; margin-bottom: 14px; user-select: text; -webkit-user-select: text; }
+
+/* loading */
+.loading { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; color: var(--dim); font-size: 14px; transition: opacity .6s ease; pointer-events: none; z-index: 6; background: #000; }
+.loading.done { opacity: 0; }
+.loading .lbar { width: min(220px, 60vw); height: 2px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+.loading .lbar i { display: block; height: 100%; width: 0%; background: var(--fg); transition: width .25s ease; }
+.loading.failed .lbar { display: none; }
+.loading p { margin: 0; max-width: 320px; text-align: center; line-height: 1.5; }
+.fade-black { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .45s ease; display: grid; place-items: center; color: var(--muted); font-size: 14px; z-index: 4; }
+.fade-black.on { opacity: 1; }
+
+/* touch controls */
+.touch { display: none; }
+.joy { position: absolute; left: calc(var(--gut) + 4px); bottom: calc(var(--bot) + 4px); width: 132px; height: 132px; border-radius: 50%; touch-action: none; }
+.joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.85); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+.tbtns { position: absolute; right: var(--gut); bottom: calc(var(--bot) + 4px); display: flex; gap: 12px; align-items: flex-end; }
+.tbtn { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font: 600 12px/1 var(--font); color: var(--fg); cursor: pointer; touch-action: none; }
+.tbtn.on { background: rgba(255,159,10,.3); border-color: rgba(255,159,10,.6); }
+.tbtn.big { width: 72px; height: 72px; margin-bottom: 36px; }
+.info-btn { display: none; }
+
+@media (max-width: 1100px) {
+  .brand p { max-width: 200px; }
+}
+@media (max-width: 900px) {
+  .tools .chip .lbl { display: none; }
+  .tools .chip { padding: 0 11px; }
+}
+@media (max-width: 720px), (pointer: coarse) {
+  .touch { display: block; }
+  body.garage .touch { display: none; }
+  .help { display: none; }
+}
+@media (max-width: 720px) {
+  :root { --top: calc(env(safe-area-inset-top, 0px) + 14px); --bot: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+  .brand h1 { font-size: 18px; }
+  .brand p { font-size: 11px; margin-top: 3px; white-space: nowrap; }
+  .tools { gap: 6px; }
+  .tools > .chip.icon-btn { width: 34px; height: 34px; min-height: 34px; }
+  .tabs { top: calc(var(--top) + 48px); left: 16px; right: 16px; transform: none; justify-content: space-between; }
+  .tabs button { flex: 1; justify-content: center; padding: 0 6px; font-size: 13px; min-height: 34px; }
+  .layers { bottom: auto; top: calc(var(--top) + 96px); left: 16px; transform: none; padding: 3px; }
+  .layers button { padding: 0 10px; font-size: 12.5px; min-height: 30px; gap: 6px; }
+  .play-chips { position: fixed; top: calc(var(--top) + 138px); left: 16px; display: flex; gap: 6px; }
+  .play-chips .chip { min-height: 34px; padding: 0 12px; font-size: 12px; }
+  .play-chips .chip .lbl { display: none; }
+  .play-chips .chip .sm-lbl { display: inline; }
+  .credit { display: none; }
+  .info-btn { display: flex; }
+  .credit.open { display: block; position: absolute; top: calc(var(--top) + 44px); right: var(--gut); left: auto; bottom: auto; width: 240px; padding: 10px 12px; border-radius: 12px; background: var(--glass2); border: 1px solid var(--line); z-index: 3; }
+  .toast { top: calc(var(--top) + 182px); font-size: 13px; }
+  body.garage .toast { top: calc(var(--top) + 96px); }
+  /* compact mind strip above the touch controls */
+  .panel { top: auto; bottom: calc(var(--bot) + 150px); left: 16px; right: 16px; width: auto; padding: 10px 12px; border-radius: 16px; max-height: none; display: grid; grid-template-columns: 1fr 88px; column-gap: 12px; align-items: center; }
+  .panel > h2, .panel > .sub { display: none; }
+  .panel > * { grid-column: 1 / -1; }
+  #gaugeBox, #rateBox { grid-column: 1; grid-row: 1; }
+  .panel .sec.sense-sec { grid-column: 2; grid-row: 1; border: 0; margin: 0; padding: 0; }
+  .sense-sec .label, .sense figcaption, .sense figure.eye { display: none; }
+  .gauge { width: 92px; height: 61px; }
+  .gauge-wrap { gap: 10px; }
+  .stat { font-size: 12px; line-height: 1.55; }
+  .rate .vs { height: 120px; }
+  .rate .side { font-size: 11px; }
+  #rateResult { margin-top: 8px; }
+  canvas.chart { height: 110px; }
+  #rateCtl { margin-top: 8px; padding-top: 8px; }
+  body.garage .panel { display: block; left: 16px; right: 16px; width: auto; bottom: var(--bot); max-height: 44vh; padding: 14px; }
+  body.garage .panel > h2, body.garage .panel > .sub { display: block; }
+  body.garage .layers { display: none; }
+  .prompt { bottom: calc(var(--bot) + 150px); }
+  body.garage .prompt { bottom: calc(44vh + var(--bot) + 10px); }
+  .tag3d { font-size: 12px; padding: 5px 8px; }
+}
+@media (min-width: 721px) {
+  .play-chips { display: contents; }
+  body.garage .prompt { left: calc(var(--gut) + 8px); transform: translate(0, 12px); bottom: calc(var(--bot) + 44px); }
+  body.garage .prompt.show { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast, .prompt, .help, .welcome, .loading, .bar i { transition: none; }
+  .pulse.go { animation: none; opacity: 1; box-shadow: inset 0 0 0 2px rgba(255,159,10,.7); }
+  body.shake #stage { animation: none; }
+}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.12.0/rapier.es.js"
+} }
+</script>
+</head>
+<body>
+<div id="stage" role="application" aria-label="Microduck Lab: a 3D tabletop where a small robot duck walks, grabs toys and can be rebuilt"></div>
+<div class="pulse" id="pulse"></div>
+<div class="fade-black" id="fadeBlack"><span id="fadeText"></span></div>
+
+<div class="hud" id="hud">
+  <div class="brand"><h1>Microduck Lab</h1><p>Walk it, poke it, rebuild it.</p></div>
+
+  <nav class="tabs glass" aria-label="Mode">
+    <button data-mode="play" aria-pressed="true">Play</button>
+    <button data-mode="sensors" aria-pressed="false">Sensors</button>
+    <button data-mode="garage" aria-pressed="false">Garage</button>
+  </nav>
+
+  <div class="tools">
+    <div class="play-chips" id="playChips">
+      <button class="chip mode-play" id="intentBtn" aria-pressed="false" title="Click the floor to send it, click a toy to fetch it"><span class="led"></span><span class="lbl">Intent mode</span><span class="sm-lbl" aria-hidden="true">Intent</span></button>
+      <button class="chip safety mode-play" id="safetyBtn" aria-pressed="true" title="Its own edge reflex"><span class="led"></span><span class="lbl">Safety reflex</span><span class="sm-lbl" aria-hidden="true">Safety</span></button>
+    </div>
+    <button class="chip icon-btn" id="soundBtn" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h3l4-3v10l-4-3H2z"/><path id="soundWave" d="M11.5 5.5a3.5 3.5 0 0 1 0 5"/></svg></button>
+    <button class="chip icon-btn" id="helpBtn" aria-label="Controls"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.3"/><circle cx="8" cy="11.6" r=".4" fill="currentColor"/></svg></button>
+    <button class="chip icon-btn info-btn" id="infoBtn" aria-label="Credits"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 7.2V11"/><circle cx="8" cy="5" r=".4" fill="currentColor"/></svg></button>
+  </div>
+
+  <div class="layers glass" role="group" aria-label="View layer">
+    <button data-layer="surface" aria-pressed="true"><span class="dot"></span>Surface</button>
+    <button data-layer="xray" aria-pressed="false"><span class="dot"></span>X-ray</button>
+    <button data-layer="mind" aria-pressed="false"><span class="dot"></span>Sensors</button>
+  </div>
+
+  <div class="help glass" id="help">
+    <div><kbd>W</kbd><kbd>S</kbd> walk &nbsp;<kbd>A</kbd><kbd>D</kbd> turn</div>
+    <div><kbd>Space</kbd> beak (tap or hold) &nbsp;<kbd>E</kbd> grab / drop</div>
+    <div><b>Drag</b> orbit · <b>scroll</b> zoom · <b>click duck</b> poke</div>
+  </div>
+  <div class="credit" id="credit">3D model: <a href="https://github.com/pollen-robotics/microduck_rl" target="_blank" rel="noopener">Pollen Robotics Microduck</a> (CC BY-NC-SA 4.0), modified</div>
+
+  <div class="toast glass" id="toast" role="status" aria-live="polite"><span class="ic" id="toastIc">!</span><div><span id="toastT"></span><small id="toastS"></small></div></div>
+
+  <!-- Sensor panel -->
+  <aside class="panel glass hidden" id="mindPanel" aria-label="What Microduck senses">
+    <h2>Sensor view</h2>
+    <p class="sub">What it sees, live. With the safety reflex on, it won't walk off the table.</p>
+    <div id="gaugeBox">
+      <div class="gauge-wrap">
+        <svg class="gauge" viewBox="0 0 112 74" aria-label="Risk gauge">
+          <defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#BF5AF2"/><stop offset=".6" stop-color="#FF9F0A"/><stop offset="1" stop-color="#FF453A"/></linearGradient></defs>
+          <path d="M12 66 A44 44 0 0 1 100 66" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="8" stroke-linecap="round"/>
+          <path id="gArc" d="M12 66 A44 44 0 0 1 100 66" fill="none" stroke="url(#gg)" stroke-width="8" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100"/>
+          <text class="num" id="gNum" x="56" y="58" text-anchor="middle">0</text>
+          <text class="cap" x="56" y="71" text-anchor="middle">risk</text>
+        </svg>
+        <div class="stat">
+          Uncertainty <b id="uNum">0%</b><br>
+          Edge ahead <b id="eNum">–</b><br>
+          <span class="state-pill" id="statePill">Calm</span>
+        </div>
+      </div>
+    </div>
+    <div class="sec sense-sec">
+      <div class="label"><span>What it sees</span></div>
+      <div class="sense">
+        <figure><canvas id="tof" width="144" height="144"></canvas><figcaption>8×8 depth (ToF)</figcaption></figure>
+        <figure class="eye"><canvas id="eyeBox" width="160" height="160"></canvas><figcaption>Head camera</figcaption></figure>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Garage panel -->
+  <aside class="panel glass hidden" id="thPanel" aria-label="Garage">
+    <h2>Garage</h2>
+    <p class="sub">Swap its parts, repaint it, give it a new voice.</p>
+    <div class="counter"><span class="big" id="origNum">22 / 22</span><span class="stat">original parts</span></div>
+    <div class="bar"><i id="origBar" style="width:100%"></i></div>
+    <div class="sec">
+      <div class="label"><span>Parts</span><span id="selName" style="text-transform:none;letter-spacing:0;color:var(--muted)"></span></div>
+      <ul class="parts" id="partsList"></ul>
+      <details class="servos"><summary><span>Servos (15)</span><span id="servoCount">15 original</span></summary><ul class="parts" id="servoList"></ul></details>
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="replaceBtn" disabled>Replace part</button><span class="stat">or click the duck</span></div>
+    </div>
+    <div class="sec">
+      <div class="label"><span>Skin</span></div>
+      <div class="row">
+        <div class="swatches" id="swatches">
+          <button data-skin="cream" aria-label="Cream" aria-pressed="true" style="background:#EFE6D2"><span style="background:#F28C28;inset:13px"></span></button>
+          <button data-skin="graphite" aria-label="Graphite" aria-pressed="false" style="background:#3A3C40"><span style="background:#F5B324;inset:13px"></span></button>
+          <button data-skin="lavender" aria-label="Lavender" aria-pressed="false" style="background:#B9A8D9"><span style="background:#F5B324;inset:13px"></span></button>
+          <button data-skin="sky" aria-label="Sky" aria-pressed="false" style="background:#9FCBEA"><span style="background:#F28C28;inset:13px"></span></button>
+        </div>
+        <select id="skinTarget" aria-label="Apply skin to">
+          <option value="all">Whole duck</option><option value="head">Head</option><option value="body">Body</option><option value="beak">Beak</option><option value="leftLeg">Left leg</option><option value="rightLeg">Right leg</option><option value="feet">Feet</option>
+        </select>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="label"><span>Voice</span><span class="serial" id="voiceSerial">MD-AA-0000</span></div>
+      <div class="row"><button class="btn" id="voiceSwap">Swap voice</button><button class="btn" id="voiceBefore">▶ Before</button><button class="btn" id="voiceAfter">▶ After</button></div>
+    </div>
+    <div class="sec">
+      <div class="label"><span>Memories</span><span class="serial" id="bodySerial">MD-AA-0000</span></div>
+      <ul class="mem" id="memList"></ul>
+    </div>
+  </aside>
+
+  <!-- touch -->
+  <div class="touch" id="touch">
+    <div class="joy glass" id="joy" aria-label="Walk joystick"><i id="joyKnob"></i></div>
+    <div class="tbtns">
+      <button class="tbtn glass" id="tGrab" aria-label="Grab or drop">Grab</button>
+      <button class="tbtn glass big" id="tBeak" aria-label="Beak">Beak</button>
+    </div>
+  </div>
+</div>
+
+<div class="welcome hidden" id="welcome">
+  <div class="card glass">
+    <h2>Meet Microduck</h2>
+    <p>A 25 cm robot duck. It walks, grabs toys with its beak, and knows better than to walk off the table. What should it call you?</p>
+    <input type="text" id="nameIn" maxlength="24" placeholder="Your name (optional)" autocomplete="off">
+    <div class="row"><button class="btn primary" id="startBtn">Start</button></div>
+  </div>
+</div>
+
+<div class="loading" id="loading" role="status"><p id="loadingText">Loading Microduck…</p><div class="lbar"><i id="loadingBar"></i></div></div>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>
