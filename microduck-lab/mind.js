@@ -27,8 +27,15 @@ export class Mind {
   // ------------------------------------------------------------------ sensing
   dropDistance(x, z, dx, dz, max = 0.5) {
     const W = this.world;
-    for (let t = 0; t <= max; t += 0.005) if (W.isOverDrop(x + dx * t, z + dz * t)) return t;
+    const y = this.refY ?? 0;
+    for (let t = 0; t <= max; t += 0.005) if (W.groundHeightAt(x + dx * t, z + dz * t, y + 0.03) < y - 0.05) return t;
     return max;
+  }
+  /** distance to the nearest drop in 8 directions (cheap ring probe) */
+  dropDistanceAny(p, max = 0.3) {
+    let best = max;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; best = Math.min(best, this.dropDistance(p.x, p.z, Math.cos(a), Math.sin(a), best)); }
+    return best;
   }
   senseToF(duck, props) {
     const o = duck.markers.tof.getWorldPosition(new THREE.Vector3());
@@ -46,10 +53,10 @@ export class Mind {
       let t = 0.015, hit = TOF.maxRange + 1, step = 0.008;
       while (t < TOF.maxRange) {
         p.copy(o).addScaledVector(d, t);
-        if (p.y <= W.groundHeightAt(p.x, p.z)) {
+        if (p.y <= W.groundHeightAt(p.x, p.z, p.y)) {
           // bisect back
           let a = t - step, b = t;
-          for (let s = 0; s < 6; s++) { const m = (a + b) / 2; p.copy(o).addScaledVector(d, m); if (p.y <= W.groundHeightAt(p.x, p.z)) b = m; else a = m; }
+          for (let s = 0; s < 6; s++) { const m = (a + b) / 2; p.copy(o).addScaledVector(d, m); if (p.y <= W.groundHeightAt(p.x, p.z, p.y)) b = m; else a = m; }
           hit = b; break;
         }
         t += step; step = t < 0.5 ? 0.008 : 0.025;
@@ -62,7 +69,7 @@ export class Mind {
         if (disc > 0) { const th = -b - Math.sqrt(disc); if (th > 0.01 && th < hit) hit = th; }
       }
       const hp = this.hits[k].copy(o).addScaledVector(d, Math.min(hit, TOF.maxRange));
-      const isDrop = hp.y < -0.05;
+      const isDrop = hp.y < (this.refY ?? 0) - 0.05;
       this.drop[k] = isDrop ? 1 : 0;
       // a drop only worries it when the edge it looks over is close (ray crosses the table plane nearby)
       if (isDrop && d.y < -0.01) { const t0 = o.y / -d.y; const hd = Math.hypot(d.x * t0, d.z * t0); dropCount += Math.max(0, 1 - hd / 0.4); }
@@ -87,7 +94,8 @@ export class Mind {
     const fwd = new THREE.Vector3(Math.sin(s.yaw), 0, Math.cos(s.yaw));
     const dir = s.cmdDir || fwd;
     this.dAheadTrue = this.dropDistance(s.pos.x, s.pos.z, dir.x, dir.z, 0.5);
-    const edgeAll = this.world.distanceToEdge(s.pos.x, s.pos.z);
+    this.refY = s.pos.y;
+    const edgeAll = this.dropDistanceAny(s.pos, 0.3);
     // uncertainty: drop zones in view, sensor noise, own speed, tilt
     const sp01 = clamp(s.speed / 0.16, 0, 1);
     const u = clamp(0.06 + this.dropFrac * 0.9 + this.noiseMean * 3 + sp01 * 0.18 + clamp(s.tilt / 0.5, 0, 1) * 0.3 + (s.carriedMass > 0 ? 0.06 : 0) + Math.exp(-edgeAll / 0.08) * 0.25, 0, 1);
@@ -97,8 +105,8 @@ export class Mind {
     this.dAheadEst = Math.max(0, this.dAheadTrue + this.edgeNoise);
     // slope from local ground samples
     const W = this.world, e = 0.04;
-    const gx = (W.groundHeightAt(s.pos.x + e, s.pos.z) - W.groundHeightAt(s.pos.x - e, s.pos.z)) / (2 * e);
-    const gz = (W.groundHeightAt(s.pos.x, s.pos.z + e) - W.groundHeightAt(s.pos.x, s.pos.z - e)) / (2 * e);
+    const yy = s.pos.y + 0.03, gx = (W.groundHeightAt(s.pos.x + e, s.pos.z, yy) - W.groundHeightAt(s.pos.x - e, s.pos.z, yy)) / (2 * e);
+    const gz = (W.groundHeightAt(s.pos.x, s.pos.z + e, yy) - W.groundHeightAt(s.pos.x, s.pos.z - e, yy)) / (2 * e);
     const slope = Math.abs(gx) < 0.5 && Math.abs(gz) < 0.5 ? Math.atan(Math.hypot(gx, gz)) : 0;
     const dEdge = Math.min(this.dAheadEst, edgeAll + 0.04);
     const rEdge = Math.pow(clamp(1 - (dEdge - 0.05) / 0.24, 0, 1), 1.5);
@@ -119,6 +127,7 @@ export class Mind {
    * cmd {v, w}. returns {v, w, kind: null|'slow'|'refuse'|'backoff'}
    */
   filter(cmd, s) {
+    this.refY = s.pos.y;
     if (!this.safety || Math.abs(cmd.v) < 1e-4 && this.backoffT <= 0) { this.override = null; return { v: cmd.v, w: cmd.w, kind: null }; }
     const sgn = Math.sign(cmd.v) || 1;
     const dir = new THREE.Vector3(Math.sin(s.yaw) * sgn, 0, Math.cos(s.yaw) * sgn);
@@ -205,7 +214,7 @@ export class Mind {
   _rollout(pos, yaw, v, w, T = 1.3) {
     const pts = []; let x = pos.x, z = pos.z, a = yaw;
     const N = this.N, dt = T / (N - 1);
-    for (let i = 0; i < N; i++) { pts.push(new THREE.Vector3(x, Math.max(0, this.world.groundHeightAt(x, z)), z)); x += Math.sin(a) * v * dt; z += Math.cos(a) * v * dt; a += w * dt; }
+    for (let i = 0; i < N; i++) { pts.push(new THREE.Vector3(x, this.world.groundHeightAt(x, z, (this.refY ?? 0) + 0.03), z)); x += Math.sin(a) * v * dt; z += Math.cos(a) * v * dt; a += w * dt; }
     return pts;
   }
   updateVisuals(dt, s, mindW) {
@@ -213,14 +222,14 @@ export class Mind {
     const show = mindW > 0.01;
     this.group.visible = show;
     if (!show) return;
-    const gy = Math.max(0, this.world.groundHeightAt(s.pos.x, s.pos.z));
+    const gy = this.world.groundHeightAt(s.pos.x, s.pos.z, s.pos.y + 0.03);
     this.halo.position.set(s.pos.x, gy + 0.001, s.pos.z);
     this.haloMat.uniforms.uR.value = 0.09 + this.uncertainty * 0.28;
     this.haloMat.uniforms.uOp.value = mindW * 0.9; this.haloMat.uniforms.uT.value = this.time;
     this.haloMat.uniforms.uRisk.value = this.risk;
     // decision path
     const chosen = this._rollout(s.pos, s.yaw, s.vChosen, s.wChosen);
-    const risky = (p) => clamp(1 - this.world.distanceToEdge(p.x, p.z) / 0.15, 0, 1);
+    const risky = (p) => clamp(1 - this.dropDistanceAny(p, 0.15) / 0.15, 0, 1);
     const pulse = 0.75 + 0.25 * Math.sin(this.time * 6);
     this._fillRibbon(this.path, chosen, (u, p) => {
       const r = Math.max(risky(p), this.risk * 0.6);

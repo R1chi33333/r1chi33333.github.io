@@ -73,6 +73,7 @@ export class DuckBody {
       const fw = leg.ankleNode.getWorldQuaternion(new THREE.Quaternion()).invert();
       leg.fLocal = new THREE.Vector3(0, 0, 1).applyQuaternion(fw);           // foot-local "forward"
       leg.rLocal = new THREE.Vector3(1, 0, 0).applyQuaternion(fw);           // foot-local "left" (+X)
+      leg.uLocal = new THREE.Vector3(0, 1, 0).applyQuaternion(fw);           // foot-local "up"
       // knee bend sign at stand
       const H = this.jointPivot(leg.names.pitch, V()), K = this.jointPivot(leg.names.knee, V()), A = this.jointPivot(leg.names.ankle, V());
       const wk = this.jointAxis(leg.names.knee, V());
@@ -104,8 +105,17 @@ export class DuckBody {
     this.crouchExtra = 0; this.pitchExtra = 0;
     this.fall = null; this.time = 0;
     this.enabledIK = true;
+    this.iters = 3;                       // IK iterations (lower for far-away ducks)
+    this.sitTarget = false; this.sitW = 0; this.crouchTarget = false; this.crouchW = 0;
+    this.skating = false; this.skateLift = 0.022; this.skateW = 0; this.stroke = 0; this.strokeSide = 1; this.wobble = 0;
+    this.emote = null; this.hop = 0; this.gazeYawOff = 0; this.gazePitchOff = 0;
     this.happyWiggle = 0;
     this.limp = this._makeLimp();
+    { // how far the trunk can sink before its shell touches the ground (for sitting)
+      let m = Infinity; const e = new THREE.Vector3();
+      for (const o of trunk.children) if (o.isMesh && o.geometry.attributes.position) { const a = o.geometry.attributes.position; for (let i = 0; i < a.count; i += 7) { e.fromBufferAttribute(a, i).applyMatrix4(o.matrixWorld); m = Math.min(m, e.y); } }
+      this.sitDrop = isFinite(m) ? Math.max(0.03, m - 0.009) : 0.05;
+    }
     // sparse vertex samples for ground contact while fallen (tighter than bounding boxes)
     this.probes = [];
     model.traverse(o => {
@@ -115,6 +125,25 @@ export class DuckBody {
       this.probes.push({ mesh: o, pts: new Float32Array(pts) });
     });
   }
+  _emote(dt) {
+    const o = { x: 0, y: 0, pitch: 0, yaw: 0, roll: 0 };
+    let gy = 0, gp = 0;
+    const E = this.emote;
+    if (E) {
+      E.t += dt; const t = E.t, u = Math.min(1, t / E.dur), env = Math.sin(Math.PI * u);
+      if (E.kind === "nod") gp = Math.sin(t * 11) * 0.38 * env;
+      else if (E.kind === "shake") gy = Math.sin(t * 13) * 0.55 * env;
+      else if (E.kind === "look") { gy = Math.sin(t * 2.2) * 0.95 * env; gp = -0.18 * env + Math.sin(t * 1.3) * 0.1 * env; }
+      else if (E.kind === "dance") {
+        o.roll = Math.sin(t * 9) * 0.14 * env; o.x = Math.sin(t * 9) * 0.006 * env; o.y = -Math.abs(Math.sin(t * 9)) * 0.008 * env;
+        o.yaw = Math.sin(t * 4.5) * 0.2 * env; gy = Math.sin(t * 4.5 + 1) * 0.4 * env; this.happyWiggle = Math.max(this.happyWiggle, env);
+      }
+      if (u >= 1) this.emote = null;
+    }
+    this.gazeYawOff = damp(this.gazeYawOff, gy, 18, dt); this.gazePitchOff = damp(this.gazePitchOff, gp, 18, dt);
+    return o;
+  }
+  playEmote(kind, dur) { this.emote = { kind, t: 0, dur: dur || { nod: 1.1, shake: 1.1, look: 2.6, dance: 2.4 }[kind] || 1.2 }; }
   minY() {
     let m = Infinity; const v = _a;
     for (const { mesh, pts } of this.probes) {
@@ -158,7 +187,7 @@ export class DuckBody {
     const fdesired = fd.clone();
     const H = V(), K = V(), A = V(), S = V(), w = V(), f = V(), tmp = V(), At = V();
     const upd = () => leg.top.updateMatrixWorld(true);
-    for (let it = 0; it < 3; it++) {
+    for (let it = 0; it < this.iters; it++) {
       // 1. hip yaw: foot heading
       upd();
       f.copy(leg.fLocal).applyQuaternion(leg.ankleNode.getWorldQuaternion(_q));
@@ -205,9 +234,9 @@ export class DuckBody {
       const base = V().copy(fwd).multiplyScalar(Math.cos(this.look.pitchDown)).add(V(0, -Math.sin(this.look.pitchDown), 0)).normalize();
       gaze.lerp(base, 1 - this.look.weight).normalize();
     } else {
-      const yawB = clamp(this.yawRate * 0.28, -0.6, 0.6) + this.look.yawBias;
+      const yawB = clamp(this.yawRate * 0.28, -0.6, 0.6) + this.look.yawBias + this.gazeYawOff;
       const y = this.yaw + yawB;
-      const p = this.look.pitchDown + walkSpeed * 0.6;
+      const p = this.look.pitchDown + walkSpeed * 0.6 + this.gazePitchOff - this.sitW * 0.25;
       gaze = V(Math.sin(y) * Math.cos(p), -Math.sin(p), Math.cos(y) * Math.cos(p));
     }
     // neck posture: a little forward when walking, plus a nod with the gait
@@ -215,7 +244,7 @@ export class DuckBody {
     this.setQ("neck_pitch", this.joints.neck_pitch.stand - walkSpeed * 0.9 + nod); this.applyJoint("neck_pitch");
     const neckTop = this.nodes.body_neck; neckTop.updateMatrixWorld(true);
     const w = V(), f = V(), r = V();
-    for (let it = 0; it < 2; it++) {
+    for (let it = 0; it < Math.min(2, this.iters); it++) {
       f.copy(this.headF).applyQuaternion(this.headNode.getWorldQuaternion(_q));
       const dYaw = signedAngle(f, gaze, this.jointAxis("head_yaw", w));
       const cy = this.q.head_yaw; this.setQ("head_yaw", clamp(cy + dYaw, -1.0, 1.0)); this.applyJoint("head_yaw");
@@ -280,15 +309,21 @@ export class DuckBody {
     const gTarget = this.fall ? gC : Math.max(gC - 0.012, Math.min(gC + 0.012, gFeet * 0.6 + gC * 0.4));
     if (s.yOverride !== undefined) this.baseY = s.yOverride;
     else this.baseY = Math.abs(this.baseY - gTarget) > 0.2 ? gTarget : damp(this.baseY, gTarget, 14, dt);
-    this.root.position.y = this.baseY;
+    this.root.position.y = this.baseY + this.hop;
     this.root.rotation.y = this.yaw;
 
     if (this.fall) { this._updateFall(dt); this._jaw(dt); this.root.updateMatrixWorld(true); return; }
 
     // ---- gait clock
     const footErr = this._footError();
-    const wantStep = speed > 0.006 || Math.abs(this.yawRate) > 0.08 || footErr > 0.012;
-    const hz = lerp(2.0, 2.9, sp01) + Math.min(Math.abs(this.yawRate), 1.5) * 0.25;
+    // ---- poses: sit / crouch / skates / emotes
+    this.sitW = damp(this.sitW, this.sitTarget ? 1 : 0, 3.5, dt);
+    this.crouchW = damp(this.crouchW, this.crouchTarget ? 1 : 0, 7, dt);
+    this.skateW = damp(this.skateW, this.skating ? 1 : 0, 8, dt);
+    const em = this._emote(dt);
+    const wantStep = !this.skating && this.sitW < 0.3 && (speed > 0.006 || Math.abs(this.yawRate) > 0.08 || footErr > 0.012);
+    if (this.skating) this.stepping = false;
+    const hz = lerp(2.0, 2.9, sp01) + Math.max(0, speed - GAIT.maxSpeed) * 9 + Math.min(Math.abs(this.yawRate), 1.5) * 0.25;
     this.cycleHz = damp(this.cycleHz, hz, 6, dt);
     if (wantStep) this.stepping = true;
     if (this.stepping) {
@@ -315,8 +350,11 @@ export class DuckBody {
     const sway = Math.sin(ph) * 0.0045 * gw;                 // toward the stance foot
     const bob = (Math.cos(ph * 2) * 0.5 + 0.5) * 0.0028 * gw;
     const breathe = Math.sin(this.time * 1.7) * 0.0006;
-    this.trunkOff.set(sway, -GAIT.crouch * gw - bob + breathe - this.crouchExtra, 0);
-    this.trunkEuler.set(this.lean + this.pitchExtra + Math.sin(ph * 2) * 0.012 * gw, Math.sin(ph) * 0.05 * gw, -Math.sin(ph) * 0.045 * gw, "YXZ");
+    const sk = this.skateW, glide = Math.sin(this.stroke * Math.PI * 2);
+    const skateRoll = sk * (clamp(this.yawRate * 0.12, -0.25, 0.25) + glide * 0.05 * this.strokeSide + this.wobble * Math.sin(this.time * 15) * 0.2);
+    this.trunkOff.set(sway + em.x + sk * glide * 0.004, -GAIT.crouch * gw - bob + breathe - this.crouchExtra - this.sitW * this.sitDrop - this.crouchW * 0.028 + sk * this.skateLift + em.y, 0);
+    this.trunkEuler.set(this.lean + this.pitchExtra + Math.sin(ph * 2) * 0.012 * gw - this.sitW * 0.16 + this.crouchW * 0.1 + sk * 0.12 + em.pitch,
+      Math.sin(ph) * 0.05 * gw + em.yaw, -Math.sin(ph) * 0.045 * gw + skateRoll + em.roll, "YXZ");
     this.trunk.position.copy(this.trunkBase).add(this.trunkOff);
     this.trunk.quaternion.setFromEuler(this.trunkEuler);
     this.root.updateMatrixWorld(true);
@@ -330,13 +368,24 @@ export class DuckBody {
         let s = ((this.phase - start) % 1 + 1) % 1;
         const inSwing = this.stepping && s < sw;
         const toeYaw = -leg.s * GAIT.toeIn;
-        if (inSwing) {
+        if (this.skateW > 0.01 && !inSwing) {
+          // on skates: feet ride under the body; one foot pushes back-and-out on each stroke
+          const push = this.strokeSide === leg.s ? Math.max(0, Math.sin(this.stroke * Math.PI * 2)) : 0;
+          const tgt = V().copy(leg.neutral).add(V(leg.s * (0.004 + push * 0.016), 0, -push * 0.035)).applyAxisAngle(UP, this.yaw).add(this.pos);
+          tgt.y = this.baseY + this.skateLift + push * 0.006;
+          F.pos.lerp(tgt, this.skateW > 0.95 ? 1 : 0.25); F.yaw = this.yaw + leg.s * push * 0.35; F.planted = true; F.pitch = 0;
+        } else if (this.sitW > 0.01 && !inSwing) {
+          // sitting: feet slide forward a little as the body settles onto its bottom
+          const tgt = V().copy(leg.neutral).add(V(leg.s * 0.006 * this.sitW, 0, 0.03 * this.sitW)).applyAxisAngle(UP, this.yaw).add(this.pos);
+          F.pos.x = damp(F.pos.x, tgt.x, 6, dt); F.pos.z = damp(F.pos.z, tgt.z, 6, dt);
+          F.pitch = -0.25 * this.sitW;
+        } else if (inSwing) {
           const u = s / sw;
           if (F.planted) { F.planted = false; F.from.copy(F.pos); F.fromYaw = F.yaw; F.fromGroundY = F.pos.y; }
           const T = this._landing(leg, (1 - u) * sw / this.cycleHz, (1 - sw) / this.cycleHz);
           const e = smoother(Math.min(1, u * 1.08));
           F.pos.x = lerp(F.from.x, T.x, e); F.pos.z = lerp(F.from.z, T.z, e);
-          const gy = Math.max(this.ground(T.x, T.z), -0.05) > -0.05 ? this.ground(T.x, T.z) : this.baseY;
+          let gy = this.ground(T.x, T.z); if (gy < this.baseY - 0.05) gy = this.baseY;
           const gyClamped = clamp(gy, this.baseY - 0.03, this.baseY + 0.03);
           F.toY = gyClamped;
           F.pos.y = lerp(F.fromGroundY, gyClamped, e) + GAIT.lift * Math.pow(Math.sin(Math.PI * u), 0.9) * (0.6 + 0.4 * sp01);
@@ -346,6 +395,7 @@ export class DuckBody {
         } else {
           if (!F.planted) { F.planted = true; F.pos.y = F.toY ?? F.pos.y; F.pitch = 0; F.justLanded = true; }
           F.pitch = 0;
+          if (this.skateW <= 0.01 && F.pos.y > this.baseY + 0.008 && !this.stepping) F.pos.y = damp(F.pos.y, this.baseY, 10, dt);
         }
         this.solveLeg(leg, F.pos, F.yaw, F.pitch || 0);
       }
@@ -418,7 +468,7 @@ export class DuckBody {
     this.phase = 0; this.stepping = false; this.prevVel.set(0, 0, 0);
   }
   teleport(pos, yaw) {
-    this.pos.copy(pos); this.yaw = yaw; this.baseY = this.ground(pos.x, pos.z); this.vel.set(0, 0, 0); this.yawRate = 0;
+    this.pos.copy(pos); this.yaw = yaw; this.baseY = pos.y; this.baseY = this.ground(pos.x, pos.z); this.vel.set(0, 0, 0); this.yawRate = 0;
     this.fall = null; this.tilt.position.set(0, 0, 0); this.tilt.quaternion.identity();
     this.model.position.set(-this.trunkBase.x, 0, -this.trunkBase.z);
     this.resetFeet();

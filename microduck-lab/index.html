@@ -34,8 +34,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* brand */
 .brand { position: absolute; top: var(--top); left: calc(var(--gut) + 8px); pointer-events: none; max-width: 300px; }
+.brand { text-shadow: 0 1px 12px rgba(0,0,0,.55), 0 0 2px rgba(0,0,0,.4); }
 .brand h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
-.brand p { margin: 4px 0 0; font-size: 13px; color: var(--muted); line-height: 1.35; }
+.brand p { margin: 4px 0 0; font-size: 13px; color: rgba(245,245,247,.82); line-height: 1.35; }
 
 /* mode tabs */
 .tabs { position: absolute; top: var(--top); left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
@@ -44,7 +45,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .tabs button:hover, .layers button:hover { color: var(--fg); }
 
 /* layer switch */
-.layers { position: absolute; left: 50%; bottom: var(--bot); transform: translateX(-50%); display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
+.layers { position: absolute; right: var(--gut); top: calc(var(--top) + 52px); display: flex; gap: 4px; padding: 4px; border-radius: 999px; }
 .layers .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .layers button[data-layer="surface"] .dot { background: var(--fg); }
 .layers button[data-layer="xray"] .dot { background: var(--cyan); }
@@ -65,7 +66,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .icon-btn svg { width: 16px; height: 16px; }
 
 /* help + credit (bottom-left) */
-.help { position: absolute; left: calc(var(--gut) + 8px); bottom: calc(var(--bot) + 44px); border-radius: 14px; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.9; transition: opacity .8s ease; white-space: nowrap; }
+.help { position: absolute; left: calc(var(--gut) + 8px); bottom: calc(var(--bot) + 40px); max-height: calc(100vh - 380px); overflow: auto; border-radius: 14px; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.9; transition: opacity .8s ease; white-space: nowrap; }
 .help.fade { opacity: 0; pointer-events: none; }
 .help b { color: var(--fg); font-weight: 600; }
 .help kbd { font: 600 11px/1 var(--font); color: var(--fg); background: rgba(255,255,255,.1); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 2px 5px; margin-right: 2px; }
@@ -73,7 +74,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .credit a { color: var(--muted); text-decoration: underline; text-decoration-color: rgba(255,255,255,.25); text-underline-offset: 2px; }
 
 /* toast + pulse */
-.toast { position: absolute; top: calc(var(--top) + 56px); left: 50%; transform: translate(-50%, -8px); opacity: 0; border-radius: 14px; padding: 10px 16px; font-size: 14px; display: flex; align-items: center; gap: 10px; transition: opacity .3s ease, transform .3s ease; pointer-events: none; max-width: calc(100vw - 32px); }
+.toast { position: absolute; top: calc(var(--top) + 108px); left: 50%; transform: translate(-50%, -8px); opacity: 0; border-radius: 14px; padding: 10px 16px; font-size: 14px; display: flex; align-items: center; gap: 10px; transition: opacity .3s ease, transform .3s ease; pointer-events: none; max-width: calc(100vw - 32px); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,159,10,.2); color: var(--orange); font-weight: 700; font-size: 13px; flex: none; }
 .toast.violet .ic { background: rgba(191,90,242,.2); color: var(--violet); }
@@ -85,7 +86,7 @@ body.shake #stage { animation: shake .28s ease-out; }
 @keyframes shake { 20% { transform: translate(3px, -1px); } 45% { transform: translate(-3px, 1px); } 70% { transform: translate(1.5px, 0); } 100% { transform: none; } }
 
 /* side panel */
-.panel { position: absolute; top: calc(var(--top) + 56px); right: var(--gut); width: 320px; max-height: calc(100vh - var(--top) - 56px - var(--bot) - 60px); overflow: auto; border-radius: 20px; padding: 18px; scrollbar-width: thin; }
+.panel { position: absolute; top: calc(var(--top) + 104px); right: var(--gut); width: 320px; max-height: calc(100vh - var(--top) - 104px - var(--bot) - 80px); overflow: auto; border-radius: 20px; padding: 18px; scrollbar-width: thin; }
 .panel h2 { margin: 0 0 4px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .panel .sub { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .panel .sec { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
@@ -193,7 +194,47 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
 .tbtn.big { width: 72px; height: 72px; margin-bottom: 36px; }
 .info-btn { display: none; }
 
+/* inventory bar */
+.invbar { position: absolute; left: 50%; bottom: var(--bot); transform: translateX(-50%); display: flex; gap: 2px; padding: 5px; border-radius: 18px; max-width: calc(100vw - 620px); overflow-x: auto; scrollbar-width: none; touch-action: pan-x; }
+.invbar::-webkit-scrollbar { display: none; }
+.slot { position: relative; flex: none; width: 46px; height: 54px; border: 0; border-radius: 13px; background: transparent; color: var(--muted); cursor: grab; display: grid; place-items: center; padding: 4px 0 0; touch-action: none; }
+.slot:hover { background: rgba(255,255,255,.08); }
+.slot[aria-pressed="true"] { background: rgba(255,255,255,.16); color: var(--fg); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.5); }
+.slot.trash[aria-pressed="true"] { background: rgba(255,69,58,.2); box-shadow: inset 0 0 0 1.5px rgba(255,105,97,.7); }
+.slot.full { opacity: .4; }
+.slot .ico { width: 26px; height: 26px; display: grid; place-items: center; pointer-events: none; }
+.slot .ico svg { width: 26px; height: 26px; }
+.slot .nm { font: 500 9.5px/1 var(--font); max-width: 46px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.slot .cnt { position: absolute; top: 2px; right: 3px; font: 600 9px/1 var(--font); color: var(--dim); pointer-events: none; }
+.slot.trash { margin-left: 6px; }
+.drag-ico { position: fixed; left: 0; top: 0; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 12px; background: rgba(29,29,31,.85); border: 1px solid var(--line); display: grid; place-items: center; pointer-events: none; z-index: 8; }
+.drag-ico svg { width: 26px; height: 26px; }
+#stage canvas.laser { cursor: none; }
+#stage canvas.trash { cursor: not-allowed; }
+/* moves column */
+.moves { position: absolute; left: calc(var(--gut) + 8px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 18px; }
+.moves button { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px 0 8px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font: 500 12.5px/1 var(--font); cursor: pointer; white-space: nowrap; text-align: left; }
+.moves button:hover { background: rgba(255,255,255,.08); color: var(--fg); }
+.moves button[aria-pressed="true"] { background: rgba(255,159,10,.2); color: var(--fg); }
+.moves button kbd { font: 600 10px/1 var(--font); color: var(--fg); background: rgba(255,255,255,.1); border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; min-width: 20px; text-align: center; }
+.moves .sep { height: 1px; background: var(--line); margin: 3px 4px; }
+body.garage .moves, body.garage .invbar, body.garage .game-hud { display: none; }
+/* game HUD */
+.game-hud { position: absolute; top: calc(var(--top) + 56px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 16px; border-radius: 999px; font-size: 13px; color: var(--muted); }
+.game-hud b { color: var(--fg); font: 700 18px/1 var(--font); font-variant-numeric: tabular-nums; }
+.game-hud b.mono { min-width: 52px; }
+.game-hud .sc { font-size: 22px; letter-spacing: .02em; }
+.game-hud .sc i { font-style: normal; color: var(--dim); margin: 0 4px; }
+.game-hud .team { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.game-hud .t0 { color: #FF9F0A; } .game-hud .t1 { color: #64D2FF; }
+.game-hud .x { width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(255,255,255,.08); color: var(--muted); cursor: pointer; font-size: 15px; margin-left: 4px; }
+.game-hud.flash { animation: hudflash .9s ease-out; }
+@keyframes hudflash { 0% { box-shadow: 0 0 0 0 rgba(255,159,10,.9); transform: translateX(-50%) scale(1.12); } 100% { box-shadow: 0 0 0 18px transparent; transform: translateX(-50%) scale(1); } }
+.countdown { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); font: 800 min(20vw, 112px)/1 var(--font); color: var(--fg); text-shadow: 0 8px 40px rgba(0,0,0,.6); opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .25s cubic-bezier(.2,.9,.3,1.4); }
+.countdown.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.mode-play.hidden { display: none !important; }
 @media (max-width: 1100px) {
+  .invbar { max-width: calc(100vw - 340px); left: auto; right: var(--gut); transform: none; }
   .brand p { max-width: 200px; }
 }
 @media (max-width: 900px) {
@@ -202,6 +243,11 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
 }
 @media (max-width: 720px), (pointer: coarse) {
   .touch { display: block; }
+  .moves { display: none; }
+  .moves.open { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; top: auto; transform: none; left: 12px; right: 12px; bottom: calc(var(--bot) + 222px); z-index: 4; background: var(--glass2); }
+  .moves.open .sep { display: none; }
+  .moves.open button { flex-direction: column; justify-content: center; gap: 4px; min-height: 52px; padding: 4px 2px; font-size: 11px; text-align: center; }
+  .moves.open button kbd { display: none; }
   body.garage .touch { display: none; }
   .help { display: none; }
 }
@@ -213,7 +259,7 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
   .tools > .chip.icon-btn { width: 34px; height: 34px; min-height: 34px; }
   .tabs { top: calc(var(--top) + 48px); left: 16px; right: 16px; transform: none; justify-content: space-between; }
   .tabs button { flex: 1; justify-content: center; padding: 0 6px; font-size: 13px; min-height: 34px; }
-  .layers { bottom: auto; top: calc(var(--top) + 96px); left: 16px; transform: none; padding: 3px; }
+  .layers { bottom: auto; top: calc(var(--top) + 96px); left: 16px; right: auto; transform: none; padding: 3px; }
   .layers button { padding: 0 10px; font-size: 12.5px; min-height: 30px; gap: 6px; }
   .play-chips { position: fixed; top: calc(var(--top) + 138px); left: 16px; display: flex; gap: 6px; }
   .play-chips .chip { min-height: 34px; padding: 0 12px; font-size: 12px; }
@@ -222,10 +268,20 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
   .credit { display: none; }
   .info-btn { display: flex; }
   .credit.open { display: block; position: absolute; top: calc(var(--top) + 44px); right: var(--gut); left: auto; bottom: auto; width: 240px; padding: 10px 12px; border-radius: 12px; background: var(--glass2); border: 1px solid var(--line); z-index: 3; }
-  .toast { top: calc(var(--top) + 182px); font-size: 13px; }
+  .toast { top: calc(var(--top) + 222px); font-size: 13px; }
+  .game-hud { top: calc(var(--top) + 180px); padding: 4px 6px 4px 12px; gap: 7px; font-size: 12px; }
+  .game-hud b { font-size: 16px; }
+  .invbar { left: 8px; right: 8px; transform: none; bottom: var(--bot); max-width: none; justify-content: flex-start; }
+  .slot { width: 48px; height: 52px; }
+  .joy { bottom: calc(var(--bot) + 70px); width: 124px; height: 124px; }
+  .tbtns { bottom: calc(var(--bot) + 70px); display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 8px 10px; align-items: center; }
+  #tMore { grid-column: 1; grid-row: 1; width: 52px; height: 52px; font-size: 11px; }
+  #tGrab { grid-column: 1; grid-row: 2; width: 56px; height: 56px; }
+  #tBeak { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+  body.garage .invbar { display: none; }
   body.garage .toast { top: calc(var(--top) + 96px); }
   /* compact mind strip above the touch controls */
-  .panel { top: auto; bottom: calc(var(--bot) + 150px); left: 16px; right: 16px; width: auto; padding: 10px 12px; border-radius: 16px; max-height: none; display: grid; grid-template-columns: 1fr 88px; column-gap: 12px; align-items: center; }
+  .panel { top: auto; bottom: calc(var(--bot) + 212px); left: 16px; right: 16px; width: auto; padding: 10px 12px; border-radius: 16px; max-height: none; display: grid; grid-template-columns: 1fr 88px; column-gap: 12px; align-items: center; }
   .panel > h2, .panel > .sub { display: none; }
   .panel > * { grid-column: 1 / -1; }
   #gaugeBox, #rateBox { grid-column: 1; grid-row: 1; }
@@ -266,12 +322,12 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
 </script>
 </head>
 <body>
-<div id="stage" role="application" aria-label="Microduck Lab: a 3D tabletop where a small robot duck walks, grabs toys and can be rebuilt"></div>
+<div id="stage" role="application" aria-label="Microduck Lab: a 3D room where a flock of small robot ducks walk, play and can be rebuilt"></div>
 <div class="pulse" id="pulse"></div>
 <div class="fade-black" id="fadeBlack"><span id="fadeText"></span></div>
 
 <div class="hud" id="hud">
-  <div class="brand"><h1>Microduck Lab</h1><p>Walk it, poke it, rebuild it.</p></div>
+  <div class="brand"><h1>Microduck Lab</h1><p>A flock of tiny robot ducks to play with.</p></div>
 
   <nav class="tabs glass" aria-label="Mode">
     <button data-mode="play" aria-pressed="true">Play</button>
@@ -296,10 +352,30 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
   </div>
 
   <div class="help glass" id="help">
-    <div><kbd>W</kbd><kbd>S</kbd> walk &nbsp;<kbd>A</kbd><kbd>D</kbd> turn</div>
-    <div><kbd>Space</kbd> beak (tap or hold) &nbsp;<kbd>E</kbd> grab / drop</div>
-    <div><b>Drag</b> orbit · <b>scroll</b> zoom · <b>click duck</b> poke</div>
+    <div><kbd>W</kbd><kbd>S</kbd> walk &nbsp;<kbd>A</kbd><kbd>D</kbd> turn &nbsp;<kbd>Space</kbd> beak &nbsp;<kbd>E</kbd> grab / drop</div>
+    <div><kbd>X</kbd> sit &nbsp;<kbd>C</kbd> crouch &nbsp;<kbd>1</kbd>–<kbd>4</kbd> nod · shake · dance · look around</div>
+    <div><kbd>K</kbd> skates &nbsp;<kbd>L</kbd> laser &nbsp;<kbd>F</kbd> football &nbsp;<kbd>R</kbd> race &nbsp;<kbd>V</kbd> view</div>
+    <div><kbd>Tab</kbd> or <b>click a duck</b> to drive it · <b>click your duck</b> to poke it</div>
+    <div><b>Drag toys</b> from the bar into the room · <b>right-click</b> deletes</div>
+    <div><b>Drag</b> to orbit · <b>scroll</b> to zoom</div>
   </div>
+  <nav class="moves glass" id="moves" aria-label="Moves">
+    <button data-move="sit"><kbd>X</kbd>Sit</button>
+    <button data-move="crouch"><kbd>C</kbd>Crouch</button>
+    <button data-move="nod"><kbd>1</kbd>Nod</button>
+    <button data-move="shake"><kbd>2</kbd>Head shake</button>
+    <button data-move="dance"><kbd>3</kbd>Dance</button>
+    <button data-move="look"><kbd>4</kbd>Look around</button>
+    <div class="sep"></div>
+    <button data-move="skates"><kbd>K</kbd>Skates</button>
+    <button data-move="laser"><kbd>L</kbd>Laser</button>
+    <button data-move="football"><kbd>F</kbd>Football</button>
+    <button data-move="race"><kbd>R</kbd>Race</button>
+    <button data-move="next"><kbd>Tab</kbd>Next duck</button>
+  </nav>
+  <div class="game-hud glass hidden" id="gameHud" aria-live="polite"></div>
+  <div class="countdown" id="countdown" aria-live="assertive"></div>
+  <div class="invbar glass" id="bar" role="toolbar" aria-label="Toys and ducks"></div>
   <div class="credit" id="credit">3D model: <a href="https://github.com/pollen-robotics/microduck_rl" target="_blank" rel="noopener">Pollen Robotics Microduck</a> (CC BY-NC-SA 4.0), modified</div>
 
   <div class="toast glass" id="toast" role="status" aria-live="polite"><span class="ic" id="toastIc">!</span><div><span id="toastT"></span><small id="toastS"></small></div></div>
@@ -364,6 +440,10 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
       <div class="row"><button class="btn" id="voiceSwap">Swap voice</button><button class="btn" id="voiceBefore">▶ Before</button><button class="btn" id="voiceAfter">▶ After</button></div>
     </div>
     <div class="sec">
+      <div class="label"><span>Accessories</span></div>
+      <div class="row"><button class="btn" id="garageSkates">Put on skates</button></div>
+    </div>
+    <div class="sec">
       <div class="label"><span>Memories</span><span class="serial" id="bodySerial">MD-AA-0000</span></div>
       <ul class="mem" id="memList"></ul>
     </div>
@@ -373,6 +453,7 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
   <div class="touch" id="touch">
     <div class="joy glass" id="joy" aria-label="Walk joystick"><i id="joyKnob"></i></div>
     <div class="tbtns">
+      <button class="tbtn glass" id="tMore" aria-label="More moves" aria-pressed="false">Moves</button>
       <button class="tbtn glass" id="tGrab" aria-label="Grab or drop">Grab</button>
       <button class="tbtn glass big" id="tBeak" aria-label="Beak">Beak</button>
     </div>
@@ -382,7 +463,7 @@ input[type=range] { width: 100%; accent-color: var(--violet); height: 28px; }
 <div class="welcome hidden" id="welcome">
   <div class="card glass">
     <h2>Meet Microduck</h2>
-    <p>A 25 cm robot duck. It walks, grabs toys with its beak, and knows better than to walk off the table. What should it call you?</p>
+    <p>A little flock of 25 cm robot ducks. Walk one around, grab toys with its beak, sit, dance, put on roller skates, play football or race. Drag more toys and ducks in from the bar. What should they call you?</p>
     <input type="text" id="nameIn" maxlength="24" placeholder="Your name (optional)" autocomplete="off">
     <div class="row"><button class="btn primary" id="startBtn">Start</button></div>
   </div>

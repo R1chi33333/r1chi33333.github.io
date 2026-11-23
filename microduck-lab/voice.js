@@ -41,7 +41,7 @@ export class Voice {
   setSerial(serial) { this.serial = serial; this.p = voiceParams(serial); }
   /** kinds: happy | startled | curious | hello | quack | sad */
   play(kind = "happy", opts = {}) {
-    if (this.muted && !opts.force) return 0;
+    if (this.muted) return 0;
     const ctx = this.ensure(); if (!ctx || ctx.state !== "running" && !opts.force) { if (ctx) ctx.resume(); }
     if (!ctx) return 0;
     const now = ctx.currentTime;

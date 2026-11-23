@@ -306,9 +306,10 @@ export function buildStage(scene, renderer, opts = {}) {
   group.add(key, key.target, rim, rim.target, kick, kick.target, hemi);
 
   let size = 1, center = new THREE.Vector3(), floorY = 0, dirty = true;
+  let extentOverride = opts.shadowExtent;
   const lightDirs = [[key, new THREE.Vector3(0.55, 1.0, 0.75).normalize()], [rim, new THREE.Vector3(-0.8, 0.55, -0.7).normalize()], [kick, new THREE.Vector3(0.9, 0.3, -0.6).normalize()]];
   if (opts.keyDir) lightDirs[0][1].copy(opts.keyDir).normalize();
-  function placeLights(p) { for (const [lt, v] of lightDirs) { lt.position.copy(p).addScaledVector(v, size * 4); lt.target.position.copy(p); } }
+  function placeLights(p) { const dist = Math.max(size * 4, (extentOverride || 0) * 2.5); for (const [lt, v] of lightDirs) { lt.position.copy(p).addScaledVector(v, dist); lt.target.position.copy(p); } }
   /** game use: keep contact shadows + the key light's shadow frustum centred on a moving subject */
   function follow(p, groundY = floorY) {
     csGroup.position.set(p.x, groundY + size * 0.001, p.z);
@@ -335,8 +336,8 @@ export function buildStage(scene, renderer, opts = {}) {
     csCam.left = -W / 2; csCam.right = W / 2; csCam.top = W / 2; csCam.bottom = -W / 2;
     csCam.near = 0; csCam.far = s.y * 0.55; csCam.updateProjectionMatrix();
     placeLights(center);
-    const sc = key.shadow.camera; const e = opts.shadowExtent ?? size * 0.9;
-    sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = size * 0.5; sc.far = size * 8; sc.updateProjectionMatrix();
+    const sc = key.shadow.camera; const e = extentOverride ?? size * 0.9;
+    sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = extentOverride ? 0.05 : size * 0.5; sc.far = Math.max(size * 8, (extentOverride || 0) * 6); sc.updateProjectionMatrix();
     key.shadow.normalBias = size * 0.004;
     uniforms.uLkScanW.value = size * 0.012;
     dirty = true;
@@ -384,6 +385,13 @@ export function buildStage(scene, renderer, opts = {}) {
   return {
     group, lights: { key, rim, kick, hemi }, floor, backdrop, contact, catcher, excluded,
     fitTo, follow, setWeights,
+    /** runtime: half-size (m) of the key light's shadow square around the followed point; persists across fitTo() */
+    setShadowExtent(e) {
+      extentOverride = e; const sc = key.shadow.camera;
+      sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = 0.05; sc.far = Math.max(size * 8, e * 6); sc.updateProjectionMatrix();
+      key.shadow.normalBias = Math.max(size * 0.004, e * 0.0015); key.shadow.needsUpdate = true;
+    },
+    get shadowExtent() { return key.shadow.camera.right; },
     /** call every frame (before rendering). Set stage.contactEveryFrame=false + stage.invalidate() for static models. */
     contactEveryFrame: true,
     invalidate() { dirty = true; },

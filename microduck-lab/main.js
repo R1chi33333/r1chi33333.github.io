@@ -1,24 +1,57 @@
-// main.js — Microduck Lab: bootstrap, input, simulation loop, camera, modes (Play / Sensors / Garage), UI.
+// main.js — Microduck Lab: bootstrap, the duck flock, input, camera, modes (Play / Sensors / Garage),
+// inventory, laser pointer, football and racing, HUD.
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { setupRenderer, buildStage, makeMaterials, applyLook, setupPost, createAdaptiveQuality, detectQuality, setPartCondition } from "./look.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { setupRenderer, buildStage, makeMaterials, applyLook, setupPost, createAdaptiveQuality, detectQuality, SKINS } from "./look.js";
 import { buildWorld } from "./world.js";
+import { adaptWorld } from "./adapter.js";
 import { DuckBody, GAIT } from "./duck.js";
 import { createPhysics } from "./physics.js";
 import { Mind } from "./mind.js";
-import { Workshop, MemoryOrb } from "./garage.js";
+import { Workshop } from "./garage.js";
 import { Voice, makeSerial } from "./voice.js";
+import { Agent } from "./agent.js";
+import { Football, Race } from "./games.js";
+import { createInventory } from "./inventory.js";
+import { PROP_CATALOG, makeSkates, makeLaserDot, placeProp } from "./props.js";
+
+// Merge each duck's small static internals (bearings, brackets, electronics) per body segment and material,
+// so a flock of 8 needs far fewer draw calls. Garage parts (shells, legs, servos, eye) stay separate meshes.
+const MERGE_RE = /^(bearing_|electronics_(?!camera)|frame_|head_motor|neck_bracket|neck_pitch_link|neck_yaw_roll_link|leg_.*bracket|leg_.*plate)/;
+function mergeInternals(root) {
+  const nodes = []; root.traverse(o => nodes.push(o));
+  for (const node of nodes) {
+    const groups = new Map();
+    for (const c of node.children) if (c.isMesh && MERGE_RE.test(c.name) && !c.children.length) {
+      const k = c.material.uuid; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c);
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const geos = list.map(m => { m.updateMatrix(); let g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+        for (const a of Object.keys(g.attributes)) if (a !== "position" && a !== "normal") g.deleteAttribute(a);
+        return g.applyMatrix4(m.matrix); });
+      let merged; try { merged = mergeGeometries(geos, false); } catch (e) { merged = null; }
+      if (!merged) continue;
+      const m0 = list[0], mesh = new THREE.Mesh(merged, m0.material);
+      mesh.name = m0.name; mesh.userData = JSON.parse(JSON.stringify(m0.userData)); mesh.castShadow = true; mesh.receiveShadow = true;
+      for (const m of list) node.remove(m);
+      node.add(mesh);
+    }
+  }
+}
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has("test");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches || Q.has("reduced");
+const PHONE = matchMedia("(max-width: 720px), (pointer: coarse)").matches || Q.has("phone");
 const $ = (id) => document.getElementById(id);
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-const damp = (cur, target, lambda, dt) => lerp(cur, target, 1 - Math.exp(-lambda * dt));
-const approach = (cur, target, rate) => cur + clamp(target - cur, -rate, rate);
-const PROP_NAMES = { foam_cube: "foam cube", ring: "silicone ring", toy_duck: "rubber duck", pencil: "pencil" };
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const CAP = { ducks: PHONE ? 4 : 8, props: PHONE ? 18 : 36 };
+const SKIN_NAMES = ["cream", "sky", "lavender", "graphite"];
 
 // ------------------------------------------------------------------ loading UI
 const loadingEl = $("loading"), loadingBar = $("loadingBar"), loadingText = $("loadingText");
@@ -34,76 +67,129 @@ async function main() {
   try {
     renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     if (!renderer.capabilities.isWebGL2) throw new Error("WebGL2 unavailable");
-  } catch (e) {
-    fail("This browser could not start WebGL 2, so the 3D lab cannot run here. Try a recent Chrome, Safari or Firefox.");
-    return;
-  }
+  } catch (e) { fail("This browser could not start WebGL 2, so the 3D lab cannot run here. Try a recent Chrome, Safari or Firefox."); return; }
   const quality = Q.get("q") || detectQuality();
   setupRenderer(renderer, { quality, maxDPR: 2 });
   $("stage").appendChild(renderer.domElement);
   renderer.domElement.tabIndex = 0;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 30);
+  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.01, 40);
   const stage = buildStage(scene, renderer, { quality, floor: false, shadowExtent: 0.4, shadowMapSize: quality === "high" ? 2048 : 1024, keyIntensity: 3.2, hemiIntensity: 0.35 });
   const mats = makeMaterials({ quality });
-  const world = buildWorld(scene, renderer, mats, { quality });
+  const rawWorld = buildWorld(scene, renderer, mats, { quality });
+  const world = adaptWorld(rawWorld);
   progress(0.08);
 
-  // ---------------------------------------------------------------- model (base64 text → GLB)
+  // ---------------------------------------------------------------- model: parse once, clone per duck
   const b64 = await new THREE.FileLoader().loadAsync("./microduck_rig.glb.txt", (ev) => { if (ev.lengthComputable) progress(0.08 + 0.72 * ev.loaded / ev.total); else progress(Math.min(0.8, 0.08 + ev.loaded / 4.3e6 * 0.72)); });
   const bin = Uint8Array.from(atob(String(b64).trim()), (c) => c.charCodeAt(0));
-  const glbBuffer = bin.buffer;
+  const tmpl = (await new GLTFLoader().parseAsync(bin.buffer, "./")).scene;
   progress(0.85);
-  const loader = new GLTFLoader();
-  const parseDuck = async () => (await loader.parseAsync(glbBuffer.slice(0), "./")).scene;
+  // prepare geometry + materials on the template; clones then share geometry and materials
+  { const holder = new THREE.Group(); holder.add(tmpl); tmpl.updateMatrixWorld(true); const r = applyLook(tmpl, mats, { parent: new THREE.Group() }); holder.remove(tmpl); stage.fitTo(tmpl); void r; mergeInternals(tmpl); }
+  if (stage.setShadowExtent) stage.setShadowExtent(1.5);
 
-  function makeDuck(model, withStage) {
-    const duck = new DuckBody(model, { ground: (x, z) => world.groundHeightAt(x, z) });
-    scene.add(duck.root);
-    duck.root.updateMatrixWorld(true);
-    const rig = applyLook(model, mats, { stage: withStage ? stage : undefined, parent: scene });
-    rig.trackMotion = true;
-    // the Mind nebula and X-ray scan plane were placed at load; keep them riding on the walking duck
+  // skins shared between ducks of the same colourway (role colours as in look.js setSkin)
+  const KIND_ROLE = { shell: "shell", shellAlt: "shell", orange: "accent", beak: "accent", foot: "accent", yellow: "accent2", soft: "soft", warmGrey: "secondary" };
+  const skinCache = new Map();
+  function skinMaterial(src, skin, role) {
+    const key = skin + "|" + src.uuid;
+    if (skinCache.has(key)) return skinCache.get(key);
+    const m = src.clone(); m.onBeforeCompile = src.onBeforeCompile; m.customProgramCacheKey = src.customProgramCacheKey; m.userData = { ...src.userData };
+    const S = SKINS[skin]; m.color.set(S[role] || src.color);
+    if (S.dark && (role === "shell" || role === "secondary")) { m.roughness = 0.4; m.clearcoat = 0.5; m.clearcoatRoughness = 0.12; }
+    skinCache.set(key, m); return m;
+  }
+  function applySkinShared(rig, skin) {
+    if (skin === "cream") return;
+    for (const mesh of rig.meshes) { const role = KIND_ROLE[mesh.userData.lookKind]; if (role) mesh.material = skinMaterial(mesh.material, skin, role); }
+  }
+
+  const phys = await createPhysics(world);
+  const mind = new Mind(world, scene);
+  const voice = new Voice();
+  progress(0.95);
+
+  // ---------------------------------------------------------------- shared game context
+  const agents = [];
+  let ctlAgent = null;
+  let inv = null, cam = { tween: 0 };
+  const laser = { on: false, visible: false, point: V(), dot: makeLaserDot({ size: 0.042 }), from: V() };
+  laser.dot.setVisible(false); scene.add(laser.dot.object);
+  const G = {
+    world, phys, voice, scene, agents, laser, camera,
+    balls: [], football: null, race: null, rescueDelay: 1.4,
+    now: () => S.simTime, controlled: () => ctlAgent, leader: () => ctlAgent,
+    events: {}, hud: null,
+  };
+  const S = {
+    mode: "play", layer: "surface", W: { surface: 1, xray: 0, mind: 0 },
+    joy: { x: 0, y: 0, active: false }, intentMode: false, simTime: 0, lastToastAt: -10,
+    lastInputAt: 0, camDragAt: -10, garageBusy: false, playPose: null, testInput: null, spaceAt: -1, name: null,
+  };
+
+  function makeDuck(skin) {
+    const model = tmpl.clone(true);
+    let duck = null;
+    duck = new DuckBody(model, { ground: (x, z) => world.groundHeightAt(x, z, (duck ? duck.baseY : 0) + 0.035) });
+    scene.add(duck.root); duck.root.updateMatrixWorld(true);
+    const rig = applyLook(model, mats, { parent: scene, edges: !PHONE });
+    rig.trackMotion = false;
     const mindLocal = duck.headNode.worldToLocal(rig.mind.position.clone());
     const scanOff = rig.scan.position.clone().sub(duck.root.position);
     rig.follow = () => {
       duck.headNode.localToWorld(rig.mind.position.copy(mindLocal));
       rig.scan.position.x = duck.root.position.x + scanOff.x; rig.scan.position.z = duck.root.position.z + scanOff.z;
     };
+    applySkinShared(rig, skin);
     return { duck, rig };
   }
-  const first = makeDuck(await parseDuck(), true);
-  progress(0.95);
+  function spawnDuck(pos, yaw, skin) {
+    if (agents.length >= CAP.ducks) return null;
+    skin = skin || SKIN_NAMES[agents.length % SKIN_NAMES.length];
+    const { duck, rig } = makeDuck(skin);
+    const a = new Agent(G, { duck, rig, serial: makeSerial(), skin, index: agents.length });
+    agents.push(a);
+    a.teleport(pos, yaw ?? Math.random() * Math.PI * 2);
+    rig.setWeights(S.W);
+    inv && inv.refresh();
+    return a;
+  }
+  function removeDuck(a) {
+    if (agents.length <= 1) { toast("Keep one duck", "You need at least one duck to play.", "info"); return; }
+    const i = agents.indexOf(a); if (i < 0) return;
+    if (a.skates) a.unequipSkates();
+    a.remove(); agents.splice(i, 1);
+    agents.forEach((b, k) => b.index = k);
+    if (a === ctlAgent) setControlled(agents[0]);
+    inv && inv.refresh();
+  }
 
-  const phys = await createPhysics(world);
-  const mind = new Mind(world, scene);
-  const voice = new Voice();
+  // ---------------------------------------------------------------- first ducks
+  const start = world.start;
+  const nStart = Number(Q.get("ducks") || (PHONE ? 3 : 3));
+  for (let i = 0; i < Math.min(nStart, CAP.ducks); i++) spawnDuck(world.spawnSpot(i, nStart), i === 0 ? start.yaw : start.yaw + (i - 1) * 0.6 - 0.3, i === 0 ? "cream" : undefined);
+  const workshop = new Workshop({ scene, duck: agents[0].duck, rig: agents[0].rig, reduced });
 
-  // ---------------------------------------------------------------- state
-  const start = world.anchors.start;
-  const S = {
-    mode: "play", layer: "surface", W: { surface: 1, xray: 0, mind: 0 },
-    pos: new THREE.Vector3(...start.position), yaw: start.yaw || 0, v: 0, w: 0, vel: new THREE.Vector3(),
-    input: { fwd: 0, turn: 0 }, joy: { x: 0, y: 0, active: false },
-    intentMode: false, task: null, held: null, beakOpen: false, spaceAt: 0,
-    fall: null, simTime: 0, lastToastAt: -10, lastOverride: null,
-    
-    lastInputAt: 0, cmd: { v: 0, w: 0 }, filtered: { v: 0, w: 0, kind: null },
-    camDragAt: -10, garageBusy: false, playPose: null, transfer: null,
-  };
-  const D = { ...first, serial: makeSerial(), voiceSerial: null, memory: newMemory() };
-  D.voiceSerial = D.serial; voice.setSerial(D.voiceSerial);
-  let companion = null; // reserved for a second duck
-  D.duck.teleport(S.pos, S.yaw); phys.setCharPosition(S.pos);
-  const workshop = new Workshop({ scene, duck: D.duck, rig: D.rig, reduced });
-  const orb = new MemoryOrb(scene);
-
-  function newMemory(name = null) { return { name, fetched: {}, falls: [], knocks: 0, refusals: 0, climbed: false, born: Date.now(), notes: [] }; }
-
+  // controlled-duck ring marker
+  const ringMat = new THREE.MeshBasicMaterial({ color: new THREE.Color("#F5F5F7").multiplyScalar(1.3), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.085, 0.092, 64), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.renderOrder = 23; ring.userData.lookNoContact = true; ring.userData.lookFX = true; scene.add(ring);
   // intent target marker
   const markMat = new THREE.MeshBasicMaterial({ color: new THREE.Color("#BF5AF2").multiplyScalar(1.8), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
   const marker = new THREE.Mesh(new THREE.RingGeometry(0.018, 0.024, 48), markMat);
-  marker.rotation.x = -Math.PI / 2; marker.userData.lookNoContact = true; marker.renderOrder = 23; scene.add(marker);
+  marker.rotation.x = -Math.PI / 2; marker.userData.lookNoContact = true; marker.userData.lookFX = true; marker.renderOrder = 23; scene.add(marker);
+
+  function setControlled(a) {
+    if (!a || a === ctlAgent) return;
+    if (ctlAgent) { ctlAgent.controlled = false; ctlAgent.cancelTask(); ctlAgent.brain.t = 999; }
+    ctlAgent = a; a.controlled = true; a.cancelTask();
+    voice.setSerial(a.serial);
+    cam.tween = 1;     // camera eases over to the new duck
+    workshop.bind(a.duck, a.rig);
+    a.chirp("hello", true);
+  }
+  setControlled(agents[0]);
 
   // ---------------------------------------------------------------- post + sizing
   const post = setupPost(renderer, scene, camera, { quality, samples: quality === "high" ? 4 : 2, aa: "msaa" });
@@ -129,56 +215,265 @@ async function main() {
     if (!reduced) { document.body.classList.remove("shake"); void document.body.offsetWidth; document.body.classList.add("shake"); }
     try { navigator.vibrate && navigator.vibrate(35); } catch (e) {}
   }
-  const help = $("help"); let helpTimer = setTimeout(() => help.classList.add("fade"), 9000);
-  $("helpBtn").onclick = () => { help.classList.toggle("fade"); clearTimeout(helpTimer); helpTimer = setTimeout(() => help.classList.add("fade"), 9000); if (matchMedia("(max-width:720px)").matches) toast("Joystick to walk", "Beak to open/close · Grab to fetch the nearest toy · drag to look", "info", 4000); };
+  G.toast = toast; G.pulse = pulse;
+  const help = $("help"); let helpTimer = setTimeout(() => help.classList.add("fade"), 12000);
+  $("helpBtn").onclick = () => { help.classList.toggle("fade"); clearTimeout(helpTimer); helpTimer = setTimeout(() => help.classList.add("fade"), 15000); };
   $("infoBtn").onclick = () => $("credit").classList.toggle("open");
   $("soundBtn").onclick = () => { voice.muted = !voice.muted; $("soundBtn").setAttribute("aria-pressed", String(!voice.muted)); $("soundWave").style.opacity = voice.muted ? 0 : 1; if (!voice.muted) voice.play("hello", { force: true }); };
-  $("safetyBtn").onclick = () => { mind.safety = !mind.safety; $("safetyBtn").setAttribute("aria-pressed", String(mind.safety)); toast(mind.safety ? "Safety reflex on" : "Safety reflex off", mind.safety ? "It will refuse to step off the edge." : "It will do what you say, even off the edge.", mind.safety ? "info" : "warn"); };
+  $("safetyBtn").onclick = () => { mind.safety = !mind.safety; $("safetyBtn").setAttribute("aria-pressed", String(mind.safety)); toast(mind.safety ? "Safety reflex on" : "Safety reflex off", mind.safety ? "It will refuse to step off an edge." : "It will do what you say, even off an edge.", mind.safety ? "info" : "warn"); };
   $("intentBtn").onclick = () => setIntentMode(!S.intentMode);
   function setIntentMode(on) {
     S.intentMode = on; $("intentBtn").setAttribute("aria-pressed", String(on));
     renderer.domElement.classList.toggle("intent", on);
-    if (on) toast("Intent mode", "Click the floor to send it there, click a toy to fetch it. Its policy moves the body.", "info", 3600);
-    else { S.task = S.task && S.task.kind === "go" ? null : S.task; }
+    if (on) { setLaser(false); toast("Intent mode", "Click the floor to send it there, click a toy to fetch it.", "info", 3400); }
+    else if (ctlAgent.task && ctlAgent.task.kind === "go") ctlAgent.cancelTask();
   }
 
-  // tabs + layers
+  // ---------------------------------------------------------------- HUD for games
+  const gameHud = $("gameHud"), countEl = $("countdown");
+  const fmt = (t) => { const m = Math.floor(t / 60), s = t - m * 60; return (m ? m + ":" : "") + (m ? String(Math.floor(s)).padStart(2, "0") : Math.floor(s)) + "." + String(Math.floor((s % 1) * 10)); };
+  G.hud = {
+    hide() { gameHud.classList.add("hidden"); countEl.classList.remove("show"); },
+    football(score, scored) {
+      gameHud.classList.remove("hidden");
+      gameHud.innerHTML = `<span class="team t0">Orange</span><b class="sc">${score[0]}<i>:</i>${score[1]}</b><span class="team t1">Teal</span><button class="x" id="hudX" aria-label="End game">×</button>`;
+      $("hudX").onclick = () => toggleFootball(false);
+      if (scored != null) { gameHud.classList.remove("flash"); void gameHud.offsetWidth; gameHud.classList.add("flash"); }
+    },
+    race(R) {
+      gameHud.classList.remove("hidden");
+      const P = R.prog.get(ctlAgent);
+      if (R.frozen) {
+        const n = Math.ceil(R.countdown - 0.6);
+        countEl.textContent = n > 0 ? String(n) : "GO!"; countEl.classList.add("show");
+      } else if (R.t > 0.8) countEl.classList.remove("show"); else { countEl.textContent = "GO!"; countEl.classList.add("show"); }
+      const pos = R.standings().findIndex(s => s.a === ctlAgent) + 1;
+      const lap = P ? Math.min(P.lap, R.laps) : 1;
+      gameHud.innerHTML = `<span class="lbl">Lap</span><b>${lap}/${R.laps}</b><span class="lbl">Time</span><b class="mono">${fmt(R.frozen ? 0 : (P && P.done ? P.time : R.t))}</b><span class="lbl">Place</span><b>${pos}/${R.prog.size}</b><button class="x" id="hudX" aria-label="End race">×</button>`;
+      $("hudX").onclick = () => toggleRace(false);
+    },
+  };
+  G.events = {
+    goal(team, score) { toast("GOAL!", (team === ctlAgent.team ? "Your team scores. " : "The other team scores. ") + score[0] + " : " + score[1], "info", 2200); voice.play("happy", { force: true, params: ctlAgent.voice }); pulse(); },
+    countdown(n) { voice.play(n === 0 ? "happy" : "curious", { force: true, params: ctlAgent.voice }); },
+    finish(a, place, t) { if (a === ctlAgent) toast(place === 1 ? "You win!" : `Finished ${["", "1st", "2nd", "3rd"][place] || place + "th"}`, "Time " + fmt(t), "info", 3400); },
+    raceOver() { toast("Race over", "Press R or the Race button to go again.", "info"); },
+    fetched(a, p) { if (a === ctlAgent) toast("Fetched the " + (p.spec.label || p.kind).toLowerCase(), S.name ? "For you, " + S.name + "." : "", "info"); },
+    grabFailed(a, why) { if (a === ctlAgent) toast(why === "missed" ? "Missed it" : "Couldn't get there", why === "missed" ? "Try again from a little closer." : "Something is in the way.", "info"); },
+    edgeFall(a) { if (a === ctlAgent) pulse(); },
+    rescue(a) {
+      if (a === ctlAgent) { $("fadeText").textContent = "Picked up and put back"; $("fadeBlack").classList.add("on"); setTimeout(() => $("fadeBlack").classList.remove("on"), TEST ? 0 : 700); }
+      a.teleport(world.spawnSpot(agents.indexOf(a), agents.length), start.yaw);
+    },
+  };
+
+  // ---------------------------------------------------------------- modes + layers
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
   document.querySelectorAll(".layers button").forEach(b => b.onclick = () => setLayer(b.dataset.layer));
-  function setLayer(l) {
-    S.layer = l; document.querySelectorAll(".layers button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.layer === l)));
-    updatePanels();
-  }
+  function setLayer(l) { S.layer = l; document.querySelectorAll(".layers button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.layer === l))); updatePanels(); }
   function updatePanels() {
     const showMind = (S.layer === "mind" || S.mode === "sensors") && S.mode !== "garage";
     $("mindPanel").classList.toggle("hidden", !showMind);
     $("thPanel").classList.toggle("hidden", S.mode !== "garage");
     document.querySelectorAll(".mode-play").forEach(el => el.classList.toggle("hidden", S.mode === "garage"));
+    document.body.classList.toggle("garage", S.mode === "garage");
   }
   function setMode(m) {
-    if (S.transfer || S.garageBusy) return;
+    if (S.garageBusy) return;
     const prev = S.mode; if (m === prev) return;
     S.mode = m; document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === m)));
-    document.body.classList.toggle("garage", m === "garage");
     if (prev === "garage") leaveGarage();
     if (m === "garage") enterGarage();
-    if (m === "sensors") { setLayer("mind"); toast("Sensor view", "See the table through its depth sensor and camera. Walk it near the edge.", "info", 3800); }
+    if (m === "sensors") { setLayer("mind"); toast("Sensor view", "What your duck senses: depth grid, head camera, its own caution.", "info", 3400); }
     if (m === "play" && S.layer === "mind" && prev === "sensors") setLayer("surface");
     updatePanels();
   }
 
+  // ---------------------------------------------------------------- moves (keyboard + buttons)
+  function doMove(m) {
+    const a = ctlAgent; if (!a || S.mode === "garage") return; voice.ensure();
+    switch (m) {
+      case "sit": a.setSit(!a.duck.sitTarget); break;
+      case "crouch": a.setCrouch(!a.duck.crouchTarget); break;
+      case "nod": case "shake": case "dance": case "look": a.emote(m); break;
+      case "skates": toggleSkates(a); break;
+      case "laser": setLaser(!laser.on); break;
+      case "football": toggleFootball(); break;
+      case "race": toggleRace(); break;
+      case "next": { const i = agents.indexOf(a); setControlled(agents[(i + 1) % agents.length]); break; }
+    }
+    refreshMoves();
+  }
+  function refreshMoves() {
+    const a = ctlAgent;
+    const set = (k, on) => document.querySelectorAll(`[data-move="${k}"]`).forEach(b => b.setAttribute("aria-pressed", String(!!on)));
+    set("sit", a.duck.sitTarget); set("crouch", a.duck.crouchTarget); set("skates", !!a.skates); set("laser", laser.on);
+    set("football", G.football && G.football.active); set("race", G.race && G.race.active);
+  }
+  document.querySelectorAll("[data-move]").forEach(b => b.addEventListener("click", () => { doMove(b.dataset.move); if (PHONE && !["sit", "crouch", "skates", "laser"].includes(b.dataset.move)) $("moves").classList.remove("open"); }));
+  $("tMore").addEventListener("click", () => { $("moves").classList.toggle("open"); $("tMore").setAttribute("aria-pressed", String($("moves").classList.contains("open"))); });
+
+  // skates: one pair per duck, a shared spare pool
+  const skatePool = [];
+  function newSkates() { return skatePool.pop() || makeSkates({ deck: ["#E6513D", "#3D8BE6", "#9B5DE5", "#2EC4B6"][Math.floor(Math.random() * 4)] }); }
+  const skatesWorn = () => agents.filter(a => a.skates).length;
+  function toggleSkates(a) {
+    if (a.skates) { skatePool.push(a.unequipSkates()); toast("Skates off", "", "info", 1200); }
+    else { a.equipSkates(newSkates()); if (a === ctlAgent) toast("Skates on!", "Push with W, steer with A/D, brake with S. Careful on the ramp.", "info", 3000); }
+    inv.refresh(); refreshMoves();
+  }
+
+  // ---------------------------------------------------------------- laser pointer
+  function setLaser(on) {
+    laser.on = on; laser.dot.setVisible(on && laser.visible); renderer.domElement.classList.toggle("laser", on);
+    if (on) { if (S.intentMode) setIntentMode(false); toast("Laser pointer", PHONE ? "Drag your finger on the floor. Ducks chase the dot." : "Move the mouse over the floor. Ducks chase the dot.", "info", 3000); }
+    else laser.visible = false;
+    refreshMoves();
+  }
+  function laserAt(x, y) {
+    const h = pickSurface(x, y);
+    if (!h) { laser.visible = false; laser.dot.setVisible(false); return; }
+    laser.point.copy(h.point); laser.visible = true; laser.dot.setVisible(true);
+    laser.from.copy(camera.position).add(V(0.25, -0.05, 0).applyQuaternion(camera.quaternion));
+    laser.dot.set(h.point, h.normal, laser.from);
+  }
+
+  // ---------------------------------------------------------------- football + race
+  function ensureBall() {
+    let b = G.balls.find(x => phys.props.includes(x));
+    if (!b) b = spawnProp("sock_ball", V(...(world.football.ballSpawn || world.football.center)));
+    return b;
+  }
+  function toggleFootball(on) {
+    if (!G.football) G.football = new Football(G);
+    const want = on ?? !G.football.active;
+    if (want) { if (G.race && G.race.active) G.race.stop(); G.football.start(ensureBall()); toast("Football!", "Walk into the sock ball to kick it. Orange attacks the far goal.", "info", 3200); }
+    else G.football.stop();
+    refreshMoves();
+  }
+  function toggleRace(on) {
+    if (!G.race) G.race = new Race(G);
+    const want = on ?? !G.race.active;
+    if (want) { if (G.football && G.football.active) G.football.stop(); for (const a of agents) if (a.skates && a !== ctlAgent) skatePool.push(a.unequipSkates()); G.race.start(); cam.tween = 1; }
+    else G.race.stop();
+    refreshMoves();
+  }
+
+  // ---------------------------------------------------------------- spawning props
+  const spawned = new Set();
+  function spawnProp(kind, point, yaw = Math.random() * Math.PI * 2) {
+    const entry = PROP_CATALOG[kind]; if (!entry) return null;
+    if (phys.props.length >= CAP.props) { toast("That's plenty of toys", "Delete some with the trash slot first.", "info"); return null; }
+    const p = entry.make();
+    placeProp(p, point.x, point.y, point.z, yaw);
+    scene.add(p.object);
+    world.addProp(p);
+    const rec = phys.addProp(p, { restitution: p.restitution ?? 0.15, linearDamping: kind === "sock_ball" ? 0.25 : 0.4, angularDamping: kind === "sock_ball" ? 0.3 : 0.8 });
+    spawned.add(rec);
+    if (p.kickable || kind === "sock_ball") G.balls.push(rec);
+    inv && inv.refresh();
+    return rec;
+  }
+  function removeProp(rec) {
+    if (rec.holder) rec.holder.releaseHeld();
+    phys.removeProp(rec); scene.remove(rec.object); world.removeProp(rec.spec);
+    if (rec.spec.shadow) scene.remove(rec.spec.shadow);
+    G.balls = G.balls.filter(b => b !== rec);
+    if (G.football && G.football.ball === rec) G.football.stop();
+    inv && inv.refresh();
+  }
+  // world props that are balls count too
+  for (const p of phys.props) if (p.spec.kickable) G.balls.push(p);
+
+  // ---------------------------------------------------------------- picking
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pick(x, y, objects) {
+    ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(objects, true).find(h => h.object.visible !== false && !h.object.userData.lookFX);
+  }
+  const surfaceMeshes = () => world.meshes.length ? world.meshes : [world.root];
+  function pickSurface(x, y) {
+    const h = pick(x, y, surfaceMeshes()); if (!h) return null;
+    const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : V(0, 1, 0);
+    if (n.y < 0.6) return null;
+    return { point: h.point.clone(), normal: n, object: h.object, distance: h.distance };
+  }
+  function agentOfObject(o) { for (const a of agents) { let p = o; while (p) { if (p === a.duck.root) return a; p = p.parent; } } return null; }
+  function propOfObject(o) { for (const p of phys.props) { let q = o; while (q) { if (q === p.object) return p; q = q.parent; } } return null; }
+  const duckMeshes = () => agents.flatMap(a => a.rig.meshes.filter(m => m.visible));
+
+  // ---------------------------------------------------------------- inventory
+  const DUCK_ICON = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 6.5c0-2 2-3.5 6-3.5s6 1.5 6 3.5v3H6z" fill="#EFE6D2"/><path d="M6 9.5h12v1.5H6z" fill="#F28C28"/><circle cx="9" cy="7" r="1.6" fill="#F5B324"/><rect x="10.8" y="11" width="2.4" height="3" fill="#44484E"/><rect x="8" y="14" width="8" height="4.5" rx="1.5" fill="#EFE6D2"/><path d="M7.5 21h3.5l-.6-2.5H8zM13 21h3.5l-.5-2.5h-2.4z" fill="#F28C28"/></svg>';
+  const SKATE_ICON = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M4 14h15a1 1 0 0 1 0 2H4z" fill="#E6513D"/><path d="M6 6h5l1 6h6v2H6z" fill="#F5F5F7"/><circle cx="7" cy="18.5" r="2" fill="#F5E6B8"/><circle cx="16" cy="18.5" r="2" fill="#F5E6B8"/></svg>';
+  const TRASH_ICON = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#FF6961" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
+  const propCount = () => phys.props.length;
+  const items = [
+    { key: "duck", label: "Duck", icon: DUCK_ICON, count: () => agents.length, cap: () => CAP.ducks, can: () => agents.length < CAP.ducks },
+    { key: "skates", label: "Skates", icon: SKATE_ICON, count: () => skatesWorn(), cap: () => agents.length, can: () => agents.some(a => !a.skates) },
+    ...Object.entries(PROP_CATALOG).map(([k, e]) => ({ key: k, label: e.label, icon: e.icon, count: () => phys.props.filter(p => p.kind === k).length, cap: () => 0, can: () => propCount() < CAP.props })),
+    { key: "trash", label: "Delete", icon: TRASH_ICON, count: () => 0, cap: () => 0, can: () => true },
+  ];
+  const ghostObject = (key) => {
+    if (key === "duck") { const g = new THREE.Group(); const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.12, 4, 12), new THREE.MeshBasicMaterial()); m.position.y = 0.11; g.add(m); return g; }
+    if (key === "skates") { const s = makeSkates(); const g = new THREE.Group(); s.left.position.set(0.04, s.height, 0); s.right.position.set(-0.04, s.height, 0); s.left.rotation.y = s.right.rotation.y = -Math.PI / 2; g.add(s.left, s.right); return g; }
+    const e = PROP_CATALOG[key]; if (!e) return null; const p = e.make(); placeProp(p, 0, 0, 0, 0); return p.object;
+  };
+  function placementHit(x, y, key) {
+    const h = pickSurface(x, y); if (!h) return null;
+    const P = h.point;
+    let ok = Math.abs(world.groundHeightAt(P.x, P.z, P.y + 0.01) - P.y) < 0.01;
+    let target = null;
+    if (key === "skates") { // drop onto a duck (or near one)
+      const dh = pick(x, y, duckMeshes()); target = dh ? agentOfObject(dh.object) : null;
+      if (!target) { let best = null, bd = 0.15; for (const a of agents) { const d = a.pos.distanceTo(P); if (d < bd && !a.skates) { bd = d; best = a; } } target = best; }
+      ok = !!target && !target.skates;
+      if (target) P.copy(target.pos);
+    }
+    if (key === "duck") ok = ok && world.isOpen(P.x, P.z, 0.05) && agents.every(a => a.pos.distanceTo(P) > 0.1);
+    return { point: P, ok, target, yaw: key === "duck" ? Math.atan2(camera.position.x - P.x, camera.position.z - P.z) : null };
+  }
+  inv = createInventory({
+    bar: $("bar"), scene, items,
+    pick: placementHit,
+    pickObject: (x, y) => {
+      const ph = pick(x, y, phys.props.map(p => p.object)), dh = pick(x, y, duckMeshes());
+      if (ph && (!dh || ph.distance <= dh.distance)) return { prop: propOfObject(ph.object) };
+      if (dh) return { agent: agentOfObject(dh.object) };
+      return null;
+    },
+    ghostObject,
+    onPlace(key, hit) {
+      voice.ensure();
+      if (key === "duck") { const a = spawnDuck(hit.point, hit.yaw); if (a) { a.chirp("hello", true); toast("New duck!", `Say hi to ${a.serial}. Click it to take control.`, "info"); } }
+      else if (key === "skates") { if (hit.target) { hit.target.equipSkates(newSkates()); if (hit.target === ctlAgent) toast("Skates on!", "Push with W, brake with S.", "info"); } }
+      else { const r = spawnProp(key, hit.point); if (r && key === "sock_ball" && !(G.football && G.football.active)) toast("Sock ball", "Walk into it to kick. Press F for a football match.", "info"); }
+      refreshMoves();
+    },
+    onDelete(obj) { deleteThing(obj); },
+    onFull(it) { toast(it.key === "duck" ? `${CAP.ducks} ducks max` : it.key === "skates" ? "Every duck has skates" : "Toy limit reached", it.key === "duck" ? "Delete a duck to add another." : "", "info"); },
+    onTrash(on) { renderer.domElement.classList.toggle("trash", on); if (on) toast("Delete", "Click a toy or a duck to remove it. Right-click (or long-press) works too.", "info"); },
+  });
+  function deleteThing(obj) {
+    if (!obj) return;
+    if (obj.prop) { removeProp(obj.prop); voice.play("curious", { force: true }); }
+    else if (obj.agent) { if (obj.agent.skates && obj.agent !== ctlAgent) { skatePool.push(obj.agent.unequipSkates()); } removeDuck(obj.agent); }
+    inv.refresh();
+  }
+
   // ---------------------------------------------------------------- input: keyboard
   const keys = new Set();
+  const KEYMOVE = { x: "sit", c: "crouch", 1: "nod", 2: "shake", 3: "dance", 4: "look", k: "skates", l: "laser", f: "football", r: "race", tab: "next" };
   addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) return;
     const k = e.key.toLowerCase();
-    if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
+    if (["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "tab"].includes(k)) e.preventDefault();
     if (e.repeat) return;
     keys.add(k); S.lastInputAt = S.simTime; voice.ensure();
-    if (!$("help").classList.contains("fade") && /^(w|a|s|d|arrow)/.test(k)) { clearTimeout(helpTimer); helpTimer = setTimeout(() => help.classList.add("fade"), 4000); }
     if (k === " ") beakDown();
     if (k === "e") grabKey();
-    if (k === "1") setLayer("surface"); if (k === "2") setLayer("xray"); if (k === "3") setLayer("mind");
+    if (k === "v") setLayer({ surface: "xray", xray: "mind", mind: "surface" }[S.layer]);
+    if (k === "escape") { inv.select(null); inv.setTrash(false); if (laser.on) setLaser(false); }
+    if (KEYMOVE[k]) doMove(KEYMOVE[k]);
   });
   addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); keys.delete(k); if (k === " ") beakUp(); });
   addEventListener("blur", () => keys.clear());
@@ -191,68 +486,82 @@ async function main() {
     return { fwd, turn };
   }
   function beakDown() {
-    if (S.mode === "garage" || S.fall) return;
-    if (S.beakOpen) { S.beakOpen = false; S.spaceAt = -1; }
-    else { S.beakOpen = true; S.spaceAt = S.simTime; }
-    if (S.held && S.beakOpen) releaseHeld();
-    updateBeakBtn();
+    const a = ctlAgent; if (S.mode === "garage" || a.fall) return;
+    if (a.beakOpen) { a.beakOpen = false; S.spaceAt = -1; } else { a.beakOpen = true; S.spaceAt = S.simTime; }
+    if (a.held && a.beakOpen) a.releaseHeld();
+    $("tBeak").classList.toggle("on", a.beakOpen);
   }
-  function beakUp() { if (S.spaceAt >= 0 && S.beakOpen && S.simTime - S.spaceAt > 0.32) { S.beakOpen = false; updateBeakBtn(); } S.spaceAt = -1; }
-  function updateBeakBtn() { $("tBeak").classList.toggle("on", S.beakOpen); }
+  function beakUp() { if (S.spaceAt >= 0 && ctlAgent.beakOpen && S.simTime - S.spaceAt > 0.32) { ctlAgent.beakOpen = false; $("tBeak").classList.remove("on"); } S.spaceAt = -1; }
+  function grabKey() {
+    const a = ctlAgent; if (S.mode === "garage" || a.fall) return; voice.ensure();
+    if (a.held) { a.startDrop(); return; }
+    const p = a.nearestGraspable(); if (p) a.startGrab(p); else { toast("Nothing to grab nearby", "Walk up to a toy, or drag one in from the bar.", "info"); a.task = { kind: "peck", t: 0 }; }
+  }
 
-  // ---------------------------------------------------------------- input: pointer (orbit, zoom, click)
-  const cam = { yaw: S.yaw + Math.PI - 0.7, pitch: 0.44, dist: 0.85, tYaw: S.yaw + Math.PI - 0.7, tPitch: 0.44, tDist: 0.85, target: new THREE.Vector3(), auto: true };
-  const pointers = new Map(); let drag = null, pinch = null;
+  // ---------------------------------------------------------------- input: pointer (orbit, zoom, click, laser, place)
+  cam = { yaw: start.yaw + Math.PI - 0.7, pitch: 0.44, dist: 0.85, tYaw: start.yaw + Math.PI - 0.7, tPitch: 0.44, tDist: 0.85, target: V(), tween: 0 };
+  const pointers = new Map(); let drag = null, pinch = null, longT = 0;
   const cv = renderer.domElement;
+  cv.addEventListener("contextmenu", (e) => { e.preventDefault(); const o = inv ? null : null; const t = pickObjectAt(e.clientX, e.clientY); if (t) deleteThing(t); });
+  function pickObjectAt(x, y) {
+    const ph = pick(x, y, phys.props.map(p => p.object)), dh = pick(x, y, duckMeshes());
+    if (ph && (!dh || ph.distance <= dh.distance)) return { prop: propOfObject(ph.object) };
+    if (dh) return { agent: agentOfObject(dh.object) };
+    return null;
+  }
   cv.addEventListener("pointerdown", (e) => {
     voice.ensure(); cv.focus({ preventScroll: true });
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     cv.setPointerCapture(e.pointerId);
-    if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, id: e.pointerId };
+    if (pointers.size === 1) {
+      drag = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, id: e.pointerId, laser: laser.on && e.pointerType !== "mouse" };
+      if (drag.laser) laserAt(e.clientX, e.clientY);
+      clearTimeout(longT);
+      if (e.pointerType !== "mouse") longT = setTimeout(() => { if (drag && !drag.moved && !drag.laser) { const t = pickObjectAt(drag.sx, drag.sy); if (t) { deleteThing(t); drag.consumed = true; try { navigator.vibrate && navigator.vibrate(20); } catch (er) {} } } }, 600);
+    }
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: cam.tDist }; drag = null; }
   });
   cv.addEventListener("pointermove", (e) => {
+    if (laser.on && e.pointerType === "mouse") laserAt(e.clientX, e.clientY);
+    if (e.pointerType === "mouse" && !pointers.size) inv.hover(e.clientX, e.clientY);
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); cam.tDist = clamp(pinch.dist * pinch.d / Math.max(d, 1), 0.22, 1.8); return; }
+    if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); cam.tDist = clamp(pinch.dist * pinch.d / Math.max(d, 1), 0.22, 2.4); return; }
     if (!drag || drag.id !== e.pointerId) return;
+    if (drag.laser) { laserAt(e.clientX, e.clientY); return; }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
-    if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) { drag.moved = true; cv.classList.add("dragging"); }
+    if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 6) { drag.moved = true; cv.classList.add("dragging"); clearTimeout(longT); }
     if (drag.moved) { cam.tYaw -= dx * 0.0065; cam.tPitch = clamp(cam.tPitch + dy * 0.005, 0.06, 1.35); S.camDragAt = S.simTime; }
   });
   const endPointer = (e) => {
-    pointers.delete(e.pointerId); cv.classList.remove("dragging");
+    pointers.delete(e.pointerId); cv.classList.remove("dragging"); clearTimeout(longT);
     if (pointers.size < 2) pinch = null;
-    if (drag && drag.id === e.pointerId) { if (!drag.moved && e.type === "pointerup") click(e.clientX, e.clientY); drag = null; }
+    if (drag && drag.id === e.pointerId) { if (!drag.moved && !drag.laser && !drag.consumed && e.type === "pointerup" && e.button !== 2) click(e.clientX, e.clientY); if (drag.laser) { laser.visible = false; laser.dot.setVisible(false); } drag = null; }
   };
   cv.addEventListener("pointerup", endPointer); cv.addEventListener("pointercancel", endPointer);
-  cv.addEventListener("wheel", (e) => { e.preventDefault(); cam.tDist = clamp(cam.tDist * Math.exp(e.deltaY * 0.0012), 0.22, 1.8); }, { passive: false });
+  cv.addEventListener("pointerleave", () => { if (laser.on) { laser.visible = false; laser.dot.setVisible(false); } inv.hideGhost(); });
+  cv.addEventListener("wheel", (e) => { e.preventDefault(); cam.tDist = clamp(cam.tDist * Math.exp(e.deltaY * 0.0012), 0.22, 2.4); }, { passive: false });
 
-  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  function pick(x, y, objects) {
-    ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-    return ray.intersectObjects(objects, true).find(h => h.object.visible !== false && !h.object.userData.lookFX);
-  }
   function click(x, y) {
+    if (inv.tap(x, y)) return;
     if (S.mode === "garage") {
-      if (S.transfer) return;
       const h = pick(x, y, workshop.pickMeshes().filter(m => m.visible));
       if (h) selectPart(workshop.partOfMesh(h.object)); else selectPart(null);
       return;
     }
-    if (S.fall) return;
-    const duckHit = pick(x, y, D.rig.meshes.filter(m => m.visible));
+    const a = ctlAgent;
+    const duckHit = pick(x, y, duckMeshes());
     const propHit = pick(x, y, phys.props.map(p => p.object));
-    const floorHit = pick(x, y, world.meshes);
+    const floorHit = pickSurface(x, y);
     const dist = (h) => h ? h.distance : Infinity;
+    const hitAgent = duckHit ? agentOfObject(duckHit.object) : null;
+    if (hitAgent && hitAgent !== a && dist(duckHit) <= dist(floorHit) + 0.01) { setControlled(hitAgent); refreshMoves(); toast("Now driving " + hitAgent.serial, "", "info", 1400); return; }
+    if (a.fall) return;
     if (S.intentMode) {
-      if (propHit && dist(propHit) <= dist(floorHit) + 0.01) {
-        const p = phys.props.find(pp => { let o = propHit.object; while (o) { if (o === pp.object) return true; o = o.parent; } return false; });
-        if (p) { startFetch(p); return; }
-      }
-      if (floorHit && dist(floorHit) < dist(duckHit)) { startGo(floorHit.point); return; }
+      if (propHit && dist(propHit) <= dist(floorHit) + 0.01) { const p = propOfObject(propHit.object); if (p && a.graspable(p)) { a.startFetch(p); a.chirp("curious", true); return; } }
+      if (floorHit && dist(floorHit) < dist(duckHit)) { a.startGo(floorHit.point); marker.position.copy(floorHit.point).add(V(0, 0.002, 0)); a.chirp("curious", true); return; }
     }
-    if (duckHit && dist(duckHit) <= dist(floorHit)) { poke(ray.ray.direction); return; }
+    if (hitAgent === a && dist(duckHit) <= dist(floorHit)) { a.poke(ray.ray.direction); pulse(); toast("You knocked it over", "It will get back up.", "warn"); }
   }
 
   // ---------------------------------------------------------------- input: touch joystick + buttons
@@ -273,347 +582,123 @@ async function main() {
   $("tGrab").addEventListener("click", () => grabKey());
   document.addEventListener("gesturestart", (e) => e.preventDefault());
 
-  // ---------------------------------------------------------------- props: grip points
-  const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
-  function gripPoint(p, from) {
-    const o = p.object; o.updateWorldMatrix(true, false);
-    if (p.id === "toy_duck") return new THREE.Vector3(0.009, 0.026, 0).applyMatrix4(o.matrixWorld);
-    if (p.id === "ring") {
-      const R = 0.016; let best = null, bd = 1e9;
-      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const w = new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R, 0).applyMatrix4(o.matrixWorld); const d = w.distanceToSquared(from); if (d < bd) { bd = d; best = w; } }
-      return best;
-    }
-    return o.getWorldPosition(new THREE.Vector3());
-  }
-  const gripWidth = (p) => (p.spec.grip && p.spec.grip.width) || 0.015;
-  function propBetweenTips() {
-    const duck = D.duck; const U = duck.markers.upper.getWorldPosition(new THREE.Vector3()), L = duck.markers.lower.getWorldPosition(new THREE.Vector3());
-    const seg = L.clone().sub(U); const len2 = Math.max(seg.lengthSq(), 1e-8);
-    let best = null, bd = 1e9;
-    for (const p of phys.props) {
-      if (p.held) continue;
-      const g = gripPoint(p, U.clone().lerp(L, 0.5));
-      const t = clamp(g.clone().sub(U).dot(seg) / len2, 0, 1);
-      const d = U.clone().addScaledVector(seg, t).distanceTo(g);
-      const tol = gripWidth(p) * 0.5 + 0.014;
-      if (d < tol && d < bd) { bd = d; best = p; }
-    }
-    return best;
-  }
-  function attach(p) {
-    phys.hold(p);
-    const head = D.duck.headNode; head.updateWorldMatrix(true, false);
-    const inv = head.matrixWorld.clone().invert();
-    const local = inv.clone().multiply(p.object.matrixWorld);
-    const gap = D.duck.beakGap(new THREE.Vector3()).applyMatrix4(inv);
-    const g = gripPoint(p, D.duck.beakGap(new THREE.Vector3())).applyMatrix4(inv);
-    S.held = { prop: p, local, settle: gap.sub(g), settleT: 0, prevPos: p.object.position.clone() };
-    D.duck.jawStop = 0;
-    const m = D.memory; m.fetched[p.id] = (m.fetched[p.id] || 0) + 1;
-    voice.play("happy"); D.duck.happyWiggle = 1;
-  }
-  function releaseHeld() {
-    if (!S.held) return;
-    const p = S.held.prop; const vel = p.object.position.clone().sub(S.held.prevPos).multiplyScalar(60);
-    vel.clampLength(0, 0.25);
-    phys.release(p, vel); S.held = null; D.duck.jawStop = 0;
-  }
-  function updateHeld(dt) {
-    const h = S.held; if (!h) return;
-    const duck = D.duck; const head = duck.headNode; head.updateWorldMatrix(true, false);
-    h.settleT = Math.min(1, h.settleT + dt / 0.25);
-    const local = h.local.clone(); const off = h.settle.clone().multiplyScalar(h.settleT);
-    local.premultiply(new THREE.Matrix4().makeTranslation(off.x, off.y, off.z));
-    const wm = head.matrixWorld.clone().multiply(local);
-    const pos = new THREE.Vector3(), quat = new THREE.Quaternion(), sc = new THREE.Vector3(); wm.decompose(pos, quat, sc);
-    h.prevPos.copy(h.prop.object.position);
-    phys.setHeldPose(h.prop, pos, quat);
-    // jaw closes until it touches the prop
-    if (duck.jaw > 0.02 && duck.beakOpening() <= gripWidth(h.prop) + 0.0015 && duck.jawStop === 0) duck.jawStop = duck.jaw;
-  }
-
-  // ---------------------------------------------------------------- tasks: go / grab / drop / fetch
-  function steer(target, face = null, tol = 0.015) {
-    const dx = target.x - S.pos.x, dz = target.z - S.pos.z, dist = Math.hypot(dx, dz);
-    const lookAt = face || target;
-    const desired = dist > tol ? Math.atan2(dx, dz) : Math.atan2(lookAt.x - S.pos.x, lookAt.z - S.pos.z);
-    const err = wrap(desired - S.yaw);
-    const w = clamp(err * 4.5, -GAIT.maxYawRate, GAIT.maxYawRate);
-    let v = dist > tol ? GAIT.maxSpeed * clamp(1 - Math.abs(err) / 0.9, 0, 1) * clamp(dist / 0.12, 0.25, 1) : 0;
-    return { v, w, dist, err };
-  }
-  function startGo(point) { S.task = { kind: "go", target: point.clone(), t: 0 }; marker.position.set(point.x, point.y + 0.002, point.z); voice.play("curious"); }
-  function startGrab(p, then = null) {
-    S.task = { kind: "grab", prop: p, phase: "approach", t: 0, then };
-    D.duck.look.target = null;
-  }
-  function startFetch(p) {
-    if (S.held) { startDrop(); return; }
-    marker.position.copy(p.object.position).setY(0.002);
-    startGrab(p, { kind: "return", home: S.pos.clone(), homeYaw: S.yaw });
-    S.task.fetch = true; voice.play("curious");
-  }
-  function startDrop(then = null) { if (!S.held) return; S.task = { kind: "drop", phase: "lower", t: 0, then }; }
-  function grabKey() {
-    if (S.mode === "garage" || S.fall) return;
-    voice.ensure();
-    if (S.held) { startDrop(); return; }
-    // nearest prop in front within reach
-    const fwd = new THREE.Vector3(Math.sin(S.yaw), 0, Math.cos(S.yaw));
-    let best = null, bs = 1e9;
-    for (const p of phys.props) {
-      const d = p.object.position.clone().sub(S.pos); d.y = 0; const L = d.length();
-      if (L > 0.42 || p.object.position.y < -0.1) continue;
-      const ang = Math.acos(clamp(d.normalize().dot(fwd), -1, 1));
-      const score = L + ang * 0.12;
-      if (ang < 1.4 && score < bs) { bs = score; best = p; }
-    }
-    if (best) startGrab(best); else { toast("Nothing to grab nearby", "Walk up to a toy, or use Intent mode and click one.", "info"); peck(); }
-  }
-  function peck() { S.task = { kind: "peck", t: 0 }; }
-
-  function runTask(dt) {
-    const T = S.task; if (!T) return null;
-    T.t += dt; const duck = D.duck;
-    if (T.kind === "go") {
-      const s = steer(T.target);
-      markMat.opacity = 0.9;
-      if (s.dist < 0.02 || T.t > 20) { S.task = null; markMat.opacity = 0; if (s.dist < 0.03) voice.play("happy"); }
-      return { v: s.v, w: s.w };
-    }
-    if (T.kind === "peck") {
-      const f = new THREE.Vector3(Math.sin(S.yaw), 0, Math.cos(S.yaw));
-      duck.reach.target = S.pos.clone().addScaledVector(f, 0.1).setY(0.03); duck.reach.weight = T.t < 0.55 ? 0.6 : 0;
-      if (T.t > 1.2) { S.task = null; duck.reach.weight = 0; }
-      return { v: 0, w: 0 };
-    }
-    if (T.kind === "grab") {
-      const p = T.prop, P = p.object.position;
-      if (P.y < -0.2) { S.task = null; duck.reach.weight = 0; toast("It fell off the table", "That toy is out of reach.", "info"); return { v: 0, w: 0 }; }
-      if (T.phase === "approach") {
-        markMat.opacity = T.fetch ? 0.9 : 0; if (T.fetch) marker.position.set(P.x, Math.max(0, world.groundHeightAt(P.x, P.z)) + 0.002, P.z);
-        const g = gripPoint(p, S.pos.clone().setY(0.03));
-        const dir = new THREE.Vector3(g.x - S.pos.x, 0, g.z - S.pos.z); const L = dir.length(); dir.normalize();
-        const standoff = 0.088;
-        const stand = new THREE.Vector3(g.x - dir.x * standoff, 0, g.z - dir.z * standoff);
-        const s = steer(L < standoff + 0.03 ? S.pos.clone().addScaledVector(dir, L - standoff) : stand, g, 0.01);
-        duck.look.target = g; duck.look.weight = 1;
-        if ((Math.abs(L - standoff) < 0.018 && Math.abs(s.err) < 0.12) || (T.t > 9)) { T.phase = "reach"; T.t = 0; S.beakOpen = true; duck.look.target = null; }
-        if (T.t > 9 && Math.abs(L - standoff) > 0.05) { S.task = null; duck.look.target = null; toast("Couldn't get there", "Something is in the way.", "info"); }
-        return { v: s.v, w: s.w };
-      }
-      if (T.phase === "reach") {
-        const g = gripPoint(p, duck.beakGap(new THREE.Vector3()));
-        duck.reach.target = g.clone().setY(Math.max(g.y, 0.017)); duck.reach.weight = 1; S.beakOpen = true;
-        if ((duck.reach.w > 0.9 && (duck.reach.err ?? 1) < 0.014) || T.t > 1.8) { T.phase = "close"; T.t = 0; S.beakOpen = false; }
-        return { v: 0, w: 0 };
-      }
-      if (T.phase === "close") {
-        S.beakOpen = false;
-        if (S.held) { T.phase = "lift"; T.t = 0; }
-        else if (T.t > 0.6) { T.phase = "lift"; T.t = 0; T.missed = true; }
-        return { v: 0, w: 0 };
-      }
-      if (T.phase === "lift") {
-        duck.reach.weight = 0; duck.look.target = null;
-        if (T.t > 0.55) {
-          if (T.missed) { toast("Missed it", "Try again from a little closer.", "info"); voice.play("sad"); S.task = null; markMat.opacity = 0; return { v: 0, w: 0 }; }
-          if (T.then && T.then.kind === "return") { S.task = { kind: "return", home: T.then.home, t: 0, prop: p }; return { v: 0, w: 0 }; }
-          S.task = null; markMat.opacity = 0;
-        }
-        return { v: 0, w: 0 };
-      }
-    }
-    if (T.kind === "return") {
-      markMat.opacity = 0.6; marker.position.set(T.home.x, Math.max(0, world.groundHeightAt(T.home.x, T.home.z)) + 0.002, T.home.z);
-      const s = steer(T.home, null, 0.03);
-      if (s.dist < 0.035 || T.t > 20) { startDrop({ kind: "fetched", prop: T.prop }); markMat.opacity = 0; }
-      return { v: s.v, w: s.w };
-    }
-    if (T.kind === "drop") {
-      const f = new THREE.Vector3(Math.sin(S.yaw), 0, Math.cos(S.yaw));
-      if (T.phase === "lower") {
-        const gy = Math.max(0, world.groundHeightAt(S.pos.x + f.x * 0.09, S.pos.z + f.z * 0.09));
-        duck.reach.target = S.pos.clone().addScaledVector(f, 0.092).setY(gy + 0.026); duck.reach.weight = 1;
-        if (duck.reach.w > 0.85 || T.t > 1.4) { T.phase = "open"; T.t = 0; S.beakOpen = true; releaseHeld(); }
-      } else if (T.phase === "open") {
-        if (T.t > 0.3) { T.phase = "up"; T.t = 0; duck.reach.weight = 0; }
-      } else if (T.phase === "up") {
-        if (T.t > 0.3) S.beakOpen = false;
-        if (T.t > 0.6) {
-          S.task = null;
-          if (T.then && T.then.kind === "fetched") { voice.play("happy"); duck.happyWiggle = 1.2; toast("Fetched the " + (PROP_NAMES[T.then.prop.id] || "toy"), D.memory.name ? "For you, " + D.memory.name + "." : "", "info"); }
-        }
-      }
-      return { v: 0, w: 0 };
-    }
-    return null;
-  }
-
-  // ---------------------------------------------------------------- falls
-  function poke(dir) {
-    if (S.fall || S.mode === "garage") return;
-    const d = new THREE.Vector3(dir.x, 0, dir.z).normalize();
-    releaseHeld(); S.task = null; D.duck.reach.weight = 0;
-    S.fall = { kind: "tip", t: 0 };
-    D.duck.startTip(d);
-    D.memory.knocks++;
-    voice.play("startled"); pulse();
-    toast("You knocked it over", "It will get back up.", "warn");
-  }
-  function startEdgeFall() {
-    const dir = S.vel.clone().setY(0); if (dir.lengthSq() < 1e-6) dir.set(Math.sin(S.yaw), 0, Math.cos(S.yaw));
-    dir.normalize();
-    releaseHeld(); S.task = null; D.duck.reach.weight = 0;
-    S.fall = { kind: "edge", t: 0, vel: dir.clone().multiplyScalar(Math.max(0.14, S.vel.length())), y: 0 };
-    D.duck.startTumble(dir);
-    const edge = Math.abs(S.pos.x) / (world.table.width / 2) > Math.abs(S.pos.z) / (world.table.depth / 2) ? (S.pos.x > 0 ? "right" : "left") : (S.pos.z > 0 ? "front" : "back");
-    D.memory.falls.push({ edge, x: S.pos.x, z: S.pos.z });
-    voice.play("startled", { force: true }); pulse();
-    S.v = 0; S.w = 0;
-  }
-  D.duck.onGotUp = onGotUp;
-  function onGotUp() {
-    if (!S.fall) return;
-    if (S.fall.kind === "edge" || S.fall.kind === "floor") {
-      S.fall.kind = "rescue"; S.fall.t = 0;
-    } else { S.fall = null; voice.play("curious"); }
-  }
-  function respawn() {
-    S.fall = null; S.pos.set(...start.position); S.yaw = start.yaw || 0; S.v = S.w = 0; S.vel.set(0, 0, 0);
-    D.duck.teleport(S.pos, S.yaw); phys.setCharPosition(S.pos); phys.syncDuckParts(D.duck); phys.snapDuckParts();
-    cam.tYaw = S.yaw + Math.PI - 0.7;
-  }
-
   // ---------------------------------------------------------------- simulation step
   const DT = 1 / 60;
+  function controlledCommand(a, dt) {
+    const ki = keyInput();
+    const moving = Math.abs(ki.fwd) > 0.01 || Math.abs(ki.turn) > 0.01;
+    if (S.mode === "garage" || a.fall) return { v: 0, w: 0 };
+    if (G.race && G.race.active && G.race.frozen) return { v: 0, w: 0 };
+    if (moving && a.task && a.task.kind !== "drop") { a.cancelTask(); markMat.opacity = 0; }
+    const tc = a._runTask(dt);
+    if (tc) { markMat.opacity = a.task && a.task.kind === "go" ? 0.9 : 0; return tc; }
+    markMat.opacity = 0;
+    if (!moving && laser.on && laser.visible && !a.skates) {
+      // chase the dot; pounce when close
+      const d = Math.hypot(laser.point.x - a.pos.x, laser.point.z - a.pos.z);
+      a.duck.look.target = laser.point; a.duck.look.weight = 0.9;
+      if (!a.pounce && d < 0.1 && S.simTime - (a.lastPounce || -9) > 1.4) { a.pounce = { t: 0 }; a.lastPounce = S.simTime; a.chirp("happy", true); }
+      if (d < 0.06) return { v: 0, w: 0 };
+      const s = a.steer(laser.point, null, 0.05); return { v: s.v, w: s.w };
+    }
+    if (a.duck.look.target === laser.point) a.duck.look.target = null;
+    const boost = G.race && G.race.active ? (world.race.speedBoost || 1) : 1;
+    return { v: ki.fwd * (ki.fwd > 0 ? GAIT.maxSpeed * boost : GAIT.maxSpeed * 0.45), w: ki.turn * GAIT.maxYawRate * (ki.fwd !== 0 ? 0.75 : 1) };
+  }
   function simStep(dt) {
     S.simTime += dt;
-    const duck = D.duck;
-    // ---------- command
-    const ki = keyInput();
-    let cmd = { v: 0, w: 0 };
-    const userMoving = Math.abs(ki.fwd) > 0.01 || Math.abs(ki.turn) > 0.01;
-    if (S.mode !== "garage" && !S.fall) {
-      if (userMoving && S.task && !(S.task.kind === "drop")) { S.task = null; duck.reach.weight = 0; duck.look.target = null; markMat.opacity = 0; }
-      const tc = runTask(dt);
-      if (tc) cmd = tc;
-      else cmd = { v: ki.fwd * (ki.fwd > 0 ? GAIT.maxSpeed : GAIT.maxSpeed * 0.45), w: ki.turn * GAIT.maxYawRate * (ki.fwd !== 0 ? 0.75 : 1) };
-    }
-    S.cmd = cmd;
-    const carried = S.held ? S.held.prop.mass : 0;
-    const F = mind.filter(cmd, { pos: S.pos, yaw: S.yaw, dt, carriedMass: carried });
-    S.filtered = F;
-    if ((F.kind === "refuse" || F.kind === "backoff") && Math.abs(cmd.v) > 0.01) {
-      if (S.simTime - S.lastToastAt > 2.6) {
-        S.lastToastAt = S.simTime; D.memory.refusals++;
-        toast("Nope!", F.kind === "backoff" ? "Too close to the edge. It backed away." : "Edge ahead. It won't step off.", "warn");
-        pulse(); voice.play("startled");
+    const C = ctlAgent;
+    // LOD by distance to the camera
+    for (const a of agents) { const d = a.controlled ? 0 : a.pos.distanceTo(camera.position); a.lod = a.controlled ? 0 : d > 1.9 ? 2 : d > 1.1 ? 1 : 0; }
+    // commands
+    const cmdC = controlledCommand(C, dt);
+    for (const a of agents) {
+      if (a === C) {
+        a.step(dt, cmdC, (cmd) => {
+          const F = mind.filter(cmd, { pos: a.pos, yaw: a.yaw, dt, carriedMass: a.held ? a.held.prop.mass : 0 });
+          if (a.skates && F.kind === "backoff") F.v = -0.02;
+          if ((F.kind === "refuse" || F.kind === "backoff") && Math.abs(cmd.v) > 0.01 && S.simTime - S.lastToastAt > 2.6) {
+            S.lastToastAt = S.simTime; a.memory.refusals++;
+            toast("Nope!", F.kind === "backoff" ? "Too close to the edge. It backed away." : "Edge ahead. It won't step off.", "warn"); pulse(); a.chirp("startled", true);
+          }
+          return F;
+        });
+      } else {
+        const cmd = S.mode === "garage" ? { v: 0, w: 0 } : a.think(dt);
+        a.step(dt, cmd);
       }
     }
-    // ---------- motion (smooth accel/decel)
-    if (!S.fall) {
-      const accel = Math.abs(F.v) > Math.abs(S.v) ? 0.55 : 1.0;
-      S.v = approach(S.v, F.v, accel * dt);
-      S.w = approach(S.w, F.w, 7 * dt);
-      S.yaw = wrap(S.yaw + S.w * dt);
-      const before = S.pos.clone();
-      if (S.mode !== "garage") {
-        const d = new THREE.Vector3(Math.sin(S.yaw) * S.v * dt, -0.004, Math.cos(S.yaw) * S.v * dt);
-        phys.moveChar(d);
-        phys.charPosition(S.pos);
+    // the flock never overlaps: gentle push-apart between close ducks
+    for (let i = 0; i < agents.length; i++) for (let j = i + 1; j < agents.length; j++) {
+      const a = agents[i], b = agents[j]; if (a.fall || b.fall) continue;
+      const dx = b.pos.x - a.pos.x, dz = b.pos.z - a.pos.z, d = Math.hypot(dx, dz), min = 0.125;
+      if (d < min && d > 1e-5 && Math.abs(a.pos.y - b.pos.y) < 0.05) {
+        const k = (min - d) * 0.5 / d;
+        a.body.moveChar(V(-dx * k, 0, -dz * k)); a.body.charPosition(a.pos);
+        b.body.moveChar(V(dx * k, 0, dz * k)); b.body.charPosition(b.pos);
       }
-      S.vel.copy(S.pos).sub(before).divideScalar(dt); S.vel.y = 0;
-      if (world.isOverDrop(S.pos.x, S.pos.z)) startEdgeFall();
-      if (S.pos.y > world.anchors.platformTop.position[1] - 0.005 && !D.memory.climbed && Math.abs(S.pos.x - world.anchors.platformTop.position[0]) < 0.15) { D.memory.climbed = true; toast("Made it to the top", "It will remember the ramp.", "info"); voice.play("happy"); }
     }
-    // ---------- fall motion
-    let yOverride;
-    if (S.fall) {
-      S.fall.t += dt;
-      if (S.fall.kind === "edge") {
-        const f = S.fall; f.vel.y -= 9.81 * dt; f.vel.x *= 0.995; f.vel.z *= 0.995;
-        S.pos.x += f.vel.x * dt; S.pos.z += f.vel.z * dt; f.y += f.vel.y * dt;
-        const floorY = -world.table.height;
-        if (f.y <= floorY) { f.y = floorY; f.kind = "floor"; duck.landTumble(); duck.fall && (duck.fall.lieTime = 1.0); voice.play("sad", { force: true }); }
-        yOverride = f.y;
-      } else if (S.fall.kind === "floor" || S.fall.kind === "rescue") {
-        yOverride = -world.table.height;
-        if (S.fall.kind === "rescue") {
-          if (S.fall.t > 0.6 && !S.fall.faded) { S.fall.faded = true; $("fadeText").textContent = "Picked up and put back on the table"; $("fadeBlack").classList.add("on"); }
-          if (S.fall.t > 1.6) { respawn(); $("fadeBlack").classList.remove("on"); toast("It remembers that fall", "See its memories in the Garage.", "info"); return; }
-        }
-      }
-      S.vel.set(0, 0, 0); S.v = 0; S.w = 0;
-    }
-    // ---------- jaw
-    duck.jawTarget = S.beakOpen ? 0.6 : 0;
-    if (!S.beakOpen && !S.held && duck.jaw > 0.05 && !S.fall) { const p = propBetweenTips(); if (p) attach(p); }
-    if (S.held && S.beakOpen && duck.jaw > (duck.jawStop || 0) + 0.12) releaseHeld();
-    if (!S.held) duck.jawStop = 0;
-    // ---------- body
-    duck.update(dt, { pos: S.pos, yaw: S.yaw, vel: S.vel, yawRate: S.fall ? 0 : S.w, yOverride });
-    updateHeld(dt);
-    if (companion) companion.duck.update(dt, { pos: companion.pos, yaw: companion.yaw, vel: new THREE.Vector3(), yawRate: 0 });
-    // ---------- physics
-    if (!S.fall) phys.syncDuckParts(duck);
     phys.step(); phys.syncProps();
-    for (const p of phys.props) if (!p.held && p.object.position.y < -world.table.height - 0.2) phys.resetProp(p);
-    // ---------- mind
-    const trunkUp = new THREE.Vector3(0, 1, 0).applyQuaternion(duck.trunk.getWorldQuaternion(_q));
-    const tilt = Math.max(0, Math.acos(clamp(trunkUp.y, -1, 1)) - duck.pitchExtra - Math.abs(duck.lean));
-    const speed = Math.hypot(S.vel.x, S.vel.z);
-    mind.estimate({ duck, dt, pos: S.pos, yaw: S.yaw, speed, cmdDir: Math.abs(S.cmd.v) > 0.005 ? new THREE.Vector3(Math.sin(S.yaw) * Math.sign(S.cmd.v), 0, Math.cos(S.yaw) * Math.sign(S.cmd.v)) : null, carriedMass: carried, tilt, props: phys.props, falling: S.fall && S.fall.kind !== "rescue" && (S.fall.kind === "edge" || S.fall.t < 0.6) });
-    // ---------- garage
+    for (const p of phys.props) { const o = p.object.position; if (!p.held && (o.y < world.floorY - 0.3 || o.x < world.room.x0 || o.x > world.room.x1 || o.z < world.room.z0 || o.z > world.room.z1)) phys.resetProp(p); }
+    // sensors follow the controlled duck
+    const duck = C.duck;
+    const trunkUp = V(0, 1, 0).applyQuaternion(duck.trunk.getWorldQuaternion(new THREE.Quaternion()));
+    const tilt = Math.max(0, Math.acos(clamp(trunkUp.y, -1, 1)) - duck.pitchExtra - Math.abs(duck.lean) - duck.sitW * 0.2);
+    const speed = C.skates ? C.sv.length() : Math.hypot(C.vel.x, C.vel.z);
+    mind.estimate({ duck, dt, pos: C.pos, yaw: C.yaw, speed, cmdDir: Math.abs(C.cmd.v) > 0.005 ? V(Math.sin(C.yaw) * Math.sign(C.cmd.v), 0, Math.cos(C.yaw) * Math.sign(C.cmd.v)) : null, carriedMass: C.held ? C.held.prop.mass : 0, tilt, props: phys.props, falling: C.fall && (C.fall.kind === "edge" || C.fall.t < 0.6) });
+    // games
+    if (G.football) G.football.update(dt);
+    if (G.race) G.race.update(dt);
+    // skates lying on the floor get picked up by a duck that walks over them
     if (S.mode === "garage") updateGarage(dt);
     if (S.pendingAsk && S.simTime >= S.pendingAsk.at) { const l = S.pendingAsk.label; S.pendingAsk = null; S.garageBusy = false; refreshParts(); voice.play("happy", { force: true }); toast("New part fitted", l, "info", 1800); }
-    workshop.update(dt); orb.update(dt);
-    // occasional idle chirp
-    if (!S.fall && speed < 0.01 && S.simTime - S.lastInputAt > 14 && S.simTime - (S.lastIdleChirp || 0) > 16) { S.lastIdleChirp = S.simTime; voice.play("curious"); }
+    workshop.update(dt);
+    if (S.simTime - S.lastInputAt > 16 && S.simTime - (S.lastIdleChirp || 0) > 18) { S.lastIdleChirp = S.simTime; C.chirp("curious"); }
   }
 
   // ---------------------------------------------------------------- camera
-  const camPos = new THREE.Vector3();
+  const camPos = V();
   function updateCamera(dt) {
-    let tgt;
+    const C = ctlAgent; let tgt;
     if (S.mode === "garage") {
-      const wb = world.anchors.workbench.position;
-      tgt = new THREE.Vector3(wb[0], wb[1] + 0.105, wb[2]);
-      if (S.transfer && companion) { tgt.lerp(new THREE.Vector3(companion.pos.x, 0.1, companion.pos.z), 0.5); tgt.y = 0.09; }
-      if (!reduced && S.simTime - S.camDragAt > 3 && !S.transfer) cam.tYaw += dt * 0.12;
+      const wb = world.workbench.position;
+      tgt = V(wb[0], wb[1] + 0.105, wb[2]);
+      if (!reduced && S.simTime - S.camDragAt > 3) cam.tYaw += dt * 0.12;
+    } else if (S.camOverride) {
+      tgt = S.camOverride.clone();
     } else {
-      tgt = D.duck.root.position.clone(); tgt.y = (S.fall ? D.duck.root.position.y : D.duck.baseY) + 0.125;
-      // drift behind the duck while walking unless the player is orbiting
-      const moving = Math.abs(S.v) > 0.02;
+      tgt = C.duck.root.position.clone(); tgt.y = (C.fall ? C.duck.root.position.y : C.duck.baseY) + 0.125;
+      const moving = Math.abs(C.v) > 0.02 || (C.skates && C.sv.length() > 0.05);
       if (moving && S.simTime - S.camDragAt > 2.5 && !reduced) {
-        const behind = S.yaw + Math.PI - 0.45 * Math.sign(wrap(cam.tYaw - S.yaw - Math.PI) || 1);
+        const behind = C.yaw + Math.PI - 0.45 * Math.sign(wrap(cam.tYaw - C.yaw - Math.PI) || 1);
         cam.tYaw += wrap(behind - cam.tYaw) * (1 - Math.exp(-0.6 * dt));
       }
     }
     const k = 1 - Math.exp(-(reduced ? 12 : 7) * dt);
-    if (innerWidth / innerHeight < 0.8) tgt.y -= S.mode === "garage" ? 0.09 : 0.03; // portrait: keep the duck clear of the bottom sheet / controls
+    if (innerWidth / innerHeight < 0.8) tgt.y -= S.mode === "garage" ? 0.09 : 0.03;
     if (!cam.init) { cam.target.copy(tgt); cam.init = true; }
-    cam.target.lerp(tgt, 1 - Math.exp(-6 * dt));
+    // tween to a newly selected duck: slower follow for a moment, then normal
+    cam.tween = Math.max(0, cam.tween - dt * 1.2);
+    cam.target.lerp(tgt, 1 - Math.exp(-(cam.tween > 0 ? 3.2 : 6) * dt));
     cam.yaw += wrap(cam.tYaw - cam.yaw) * k; cam.pitch += (cam.tPitch - cam.pitch) * k; cam.dist += (cam.tDist - cam.dist) * k;
     const portrait = innerWidth / innerHeight < 0.8;
-    const off = new THREE.Vector3(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(cam.dist * (portrait ? (S.mode === "garage" ? 1.9 : 1.35) : 1));
+    const off = V(Math.sin(cam.yaw) * Math.cos(cam.pitch), Math.sin(cam.pitch), Math.cos(cam.yaw) * Math.cos(cam.pitch)).multiplyScalar(cam.dist * (portrait ? (S.mode === "garage" ? 1.9 : 1.7) : 1));
     camPos.copy(cam.target).add(off);
-    // keep the camera above the tabletop when it is over the table
-    if (!world.isOverDrop(camPos.x, camPos.z)) camPos.y = Math.max(camPos.y, world.groundHeightAt(camPos.x, camPos.z) + 0.03);
+    world.clampCamera(camPos);
     camera.position.copy(camPos); camera.lookAt(cam.target);
   }
 
-  // ---------------------------------------------------------------- layers easing + render
+  // ---------------------------------------------------------------- render
   const eyeBox = $("eyeBox"), tofCv = $("tof");
   const EYE_W = 160, EYE_H = 160;
   const eyeRT = new THREE.WebGLRenderTarget(EYE_W, EYE_H, { samples: 0 }); eyeRT.texture.colorSpace = THREE.SRGBColorSpace;
   const eyePx = new Uint8Array(EYE_W * EYE_H * 4); const eyeCtx = eyeBox.getContext("2d"); const eyeImg = eyeCtx.createImageData(EYE_W, EYE_H);
   function renderEye() {
-    const duck = D.duck; const f = duck.headDir(new THREE.Vector3());
+    const duck = ctlAgent.duck; const f = duck.headDir(V());
     duck.markers.cam.getWorldPosition(eyeCam.position).addScaledVector(f, 0.012);
     eyeCam.lookAt(eyeCam.position.clone().add(f)); eyeCam.aspect = 1; eyeCam.updateProjectionMatrix();
     const hidden = []; scene.traverse(o => { if ((o.userData.lookFX || o.name === "mind_fx") && o.visible) { hidden.push(o); o.visible = false; } });
-    D.rig.meshes.forEach(m => { if (m.visible && /^(shell_head|eye_|electronics_camera|shell_beak)/.test(m.name)) { hidden.push(m); m.visible = false; } });
+    ctlAgent.rig.meshes.forEach(m => { if (m.visible && /^(shell_head|eye_|electronics_camera|shell_beak)/.test(m.name)) { hidden.push(m); m.visible = false; } });
     const exp = renderer.toneMappingExposure; renderer.toneMappingExposure = 0.8;
     renderer.setRenderTarget(eyeRT); renderer.clear(); renderer.render(scene, eyeCam); renderer.setRenderTarget(null);
     renderer.toneMappingExposure = exp;
@@ -621,68 +706,58 @@ async function main() {
     renderer.readRenderTargetPixels(eyeRT, 0, 0, EYE_W, EYE_H, eyePx);
     const d = eyeImg.data;
     for (let y = 0; y < EYE_H; y++) { const src = (EYE_H - 1 - y) * EYE_W * 4; d.set(eyePx.subarray(src, src + EYE_W * 4), y * EYE_W * 4); }
-    // slight camera-sensor feel: cool tint + vignette done by CSS
     eyeCtx.putImageData(eyeImg, 0, 0);
   }
   let frame = 0;
   function render(dt) {
     frame++;
+    const C = ctlAgent;
     const t = { surface: S.layer === "surface" ? 1 : 0, xray: S.layer === "xray" ? 1 : 0, mind: S.layer === "mind" ? 1 : 0 };
     const k = reduced || TEST || dt === 0 ? 1 : 1 - Math.exp(-5 * dt);
     for (const key in t) S.W[key] = lerp(S.W[key], t[key], k);
-    D.rig.setWeights(S.W); if (companion) companion.rig.setWeights(S.W); world.setWeights(S.W);
+    const fx = S.W.xray + S.W.mind > 0.01;
+    for (const a of agents) { a.rig.setWeights(S.W); a.rig.trackMotion = fx; }
+    stage.setWeights(S.W); world.setWeights(S.W);
     updateCamera(dt || DT);
-    stage.follow(D.duck.root.position, Math.max(-world.table.height, Math.min(D.duck.baseY, world.groundHeightAt(D.duck.pos.x, D.duck.pos.z))));
-    world.update(dt); scene.updateMatrixWorld(true);
-    D.rig.follow(); D.rig.update(dt); if (companion) { companion.rig.follow(); companion.rig.update(dt); }
-    mind.updateVisuals(dt, { pos: S.pos, yaw: S.yaw, vChosen: S.mode === "garage" ? 0 : S.v, wChosen: S.mode === "garage" ? 0 : S.w, vCmd: S.cmd.v, wCmd: S.cmd.w, override: S.filtered.kind }, S.mode === "garage" ? 0 : S.W.mind);
-    markMat.opacity *= 1; marker.scale.setScalar(1 + 0.15 * Math.sin(S.simTime * 6));
+    { const t = cam.target; stage.follow(t, world.groundHeightAt(t.x, t.z, t.y + 0.05 - 0.125)); }
+    world.update(dt); laser.dot.update(dt); scene.updateMatrixWorld(true);
+    for (const a of agents) { a.rig.follow(); a.rig.update(dt); }
+    mind.updateVisuals(dt, { pos: C.pos, yaw: C.yaw, vChosen: S.mode === "garage" ? 0 : C.v, wChosen: S.mode === "garage" ? 0 : C.w, vCmd: C.cmd.v, wCmd: C.cmd.w, override: C.filtered.kind }, S.mode === "garage" ? 0 : S.W.mind);
+    marker.scale.setScalar(1 + 0.15 * Math.sin(S.simTime * 6));
+    ring.visible = S.mode !== "garage" && agents.length > 1;
+    ring.position.set(C.pos.x, C.duck.baseY + 0.0015, C.pos.z); ring.scale.setScalar(1 + 0.05 * Math.sin(S.simTime * 3));
     stage.update(dt);
     post.render(dt);
-    // head-camera inset (Mind panel): small render target, read back into a 2D canvas inside the glass panel
     const mindVisible = !$("mindPanel").classList.contains("hidden") && getComputedStyle(eyeBox.parentElement).display !== "none";
     if (mindVisible && (TEST || frame % 3 === 0)) renderEye();
-    if (mindVisible || !$("mindPanel").classList.contains("hidden")) mind.drawDepth(tofCv);
+    if (!$("mindPanel").classList.contains("hidden")) mind.drawDepth(tofCv);
     updateHUD();
   }
 
-  // ---------------------------------------------------------------- HUD (mind panel)
+  // ---------------------------------------------------------------- HUD (sensor panel)
   const gArc = $("gArc"), gNum = $("gNum");
   function updateHUD() {
     if ($("mindPanel").classList.contains("hidden")) return;
+    const C = ctlAgent;
     const r = Math.round(mind.risk * 100);
     gArc.setAttribute("stroke-dasharray", `${r} 100`); gNum.textContent = r;
     $("uNum").textContent = Math.round(mind.uncertainty * 100) + "%";
     $("eNum").textContent = mind.dAheadEst >= 0.49 ? "far" : Math.round(mind.dAheadEst * 100) + " cm";
     const pill = $("statePill");
     let st = "Calm", warn = false;
-    if (S.fall) { st = "Falling!"; warn = true; }
-    else if (S.filtered.kind === "refuse") { st = "Refusing"; warn = true; }
-    else if (S.filtered.kind === "backoff") { st = "Backing away"; warn = true; }
-    else if (S.filtered.kind === "slow") { st = "Slowing down"; warn = true; }
-    else if (S.held) st = "Carrying " + (PROP_NAMES[S.held.prop.id] || "a toy");
+    if (C.fall) { st = "Falling!"; warn = true; }
+    else if (C.filtered.kind === "refuse") { st = "Refusing"; warn = true; }
+    else if (C.filtered.kind === "backoff") { st = "Backing away"; warn = true; }
+    else if (C.filtered.kind === "slow") { st = "Slowing down"; warn = true; }
+    else if (C.skates) st = C.duck.wobble > 0.5 ? "Wobbly!" : "Skating";
+    else if (C.held) st = "Carrying " + (C.held.prop.spec.label || "a toy").toLowerCase();
+    else if (C.duck.sitW > 0.5) st = "Sitting";
     else if (mind.uncertainty > 0.45) st = "Unsure";
     else if (mind.risk > 0.4) { st = "Careful"; warn = true; }
     pill.textContent = st; pill.classList.toggle("warn", warn);
   }
 
-  function drawLines(cv, series, o = {}) {
-    const g = cv.getContext("2d"), W = cv.width, H = cv.height; g.clearRect(0, 0, W, H);
-    const L = 44, R = 12, T = 12, B = 34; const xMax = o.xMax || 1, yMax = o.yMax || 1;
-    const X = (x) => L + (W - L - R) * x / xMax, Y = (y) => T + (H - T - B) * (1 - y / yMax);
-    g.font = "500 20px Inter, sans-serif"; g.fillStyle = "#6E6E73"; g.strokeStyle = "rgba(255,255,255,.08)"; g.lineWidth = 2;
-    for (const y of o.yTicks || [0, 0.5, 1]) { g.beginPath(); g.moveTo(L, Y(y)); g.lineTo(W - R, Y(y)); g.stroke(); g.textAlign = "right"; g.fillText(o.yFmt ? o.yFmt(y) : Math.round(y * 100), L - 8, Y(y) + 7); }
-    g.textAlign = "center"; for (const x of o.xTicks || [0, xMax / 2, xMax]) g.fillText(o.xFmt ? o.xFmt(x) : Math.round(x), X(x), H - 8);
-    if (o.xLabel) { g.textAlign = "right"; g.fillText(o.xLabel, W - R, H - 8 - 0); }
-    for (const s of series) {
-      if (!s.data.length) continue;
-      g.strokeStyle = s.color; g.lineWidth = (s.width || 2) * 2; g.lineJoin = "round"; g.lineCap = "round";
-      if (s.line !== false) { g.beginPath(); s.data.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); g.stroke(); }
-      if (s.dots) for (const [x, y, kind] of s.data) { g.fillStyle = kind === "T" ? "#BF5AF2" : s.color; g.beginPath(); if (kind === "T") { g.moveTo(X(x), Y(y) - 9); g.lineTo(X(x) + 9, Y(y)); g.lineTo(X(x), Y(y) + 9); g.lineTo(X(x) - 9, Y(y)); } else g.arc(X(x), Y(y), 6, 0, Math.PI * 2); g.fill(); }
-    }
-  }
-
-  // ---------------------------------------------------------------- Garage
+  // ---------------------------------------------------------------- Garage (edits the controlled duck)
   const partsList = $("partsList"), servoList = $("servoList");
   let selected = null;
   function buildPartsUI() {
@@ -697,6 +772,7 @@ async function main() {
   }
   function refreshParts() {
     for (const p of workshop.parts) {
+      if (!p.btn) continue;
       const st = p.btn.querySelector(".st"); st.textContent = p.replaced ? (p.swaps > 1 ? `new ×${p.swaps}` : "new") : "original"; st.classList.toggle("new", p.replaced);
       p.btn.setAttribute("aria-pressed", String(p === selected));
     }
@@ -705,17 +781,18 @@ async function main() {
     $("servoCount").textContent = workshop.parts.filter(p => p.servo && !p.replaced).length + " original";
     $("replaceBtn").disabled = !selected || workshop.busy;
     $("selName").textContent = selected ? selected.label : "";
-    $("voiceSerial").textContent = D.voiceSerial; $("bodySerial").textContent = D.serial;
+    $("voiceSerial").textContent = ctlAgent.serial; $("bodySerial").textContent = ctlAgent.serial;
+    $("garageSkates").textContent = ctlAgent.skates ? "Take off skates" : "Put on skates";
     renderMemories();
   }
   function selectPart(p) {
     selected = p; workshop.highlight(p); refreshParts();
     if (p && p.servo) $("servoList").parentElement.open = true;
-    if (p && innerWidth > 720) p.btn.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+    if (p && innerWidth > 720 && p.btn) p.btn.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
   }
   $("replaceBtn").onclick = () => replaceSelected();
   function replaceSelected() {
-    if (!selected || workshop.busy || S.transfer) return;
+    if (!selected || workshop.busy) return;
     const p = selected; const dur = workshop.replace(p); voice.play("startled", { force: true });
     S.garageBusy = true; selected = null; refreshParts();
     S.pendingAsk = { at: S.simTime + dur + 0.15, label: p.label };
@@ -723,83 +800,79 @@ async function main() {
   }
   document.querySelectorAll("#swatches button").forEach(b => b.onclick = () => {
     const target = $("skinTarget").value; workshop.skin(b.dataset.skin, target);
-    if (target === "all") document.querySelectorAll("#swatches button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-    voice.play("happy");
+    if (target === "all") { ctlAgent.skin = b.dataset.skin; document.querySelectorAll("#swatches button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); }
+    voice.play("happy", { force: true });
   });
   let prevVoice = null;
-  $("voiceSwap").onclick = () => { prevVoice = D.voiceSerial; D.voiceSerial = makeSerial(); voice.setSerial(D.voiceSerial); refreshParts(); voice.play("hello", { force: true }); };
-  $("voiceBefore").onclick = () => { const s = prevVoice || D.voiceSerial; const old = voice.serial; voice.setSerial(s); voice.play("hello", { force: true }); voice.setSerial(old); };
-  $("voiceAfter").onclick = () => { voice.setSerial(D.voiceSerial); voice.play("hello", { force: true }); };
+  $("voiceSwap").onclick = () => { const a = ctlAgent; prevVoice = a.serial; a.serial = makeSerial(); a.voice = (voice.setSerial(a.serial), voice.p); refreshParts(); voice.play("hello", { force: true }); };
+  $("voiceBefore").onclick = () => { const s = prevVoice || ctlAgent.serial; voice.setSerial(s); voice.play("hello", { force: true }); voice.setSerial(ctlAgent.serial); };
+  $("voiceAfter").onclick = () => { voice.setSerial(ctlAgent.serial); voice.play("hello", { force: true }); };
+  $("garageSkates").onclick = () => { toggleSkates(ctlAgent); refreshParts(); };
 
-  function memoryItems(m) {
-    const out = [];
-    if (m.name) out.push(`Knows you as ${m.name}`);
-    const fav = Object.entries(m.fetched).sort((a, b) => b[1] - a[1])[0];
-    if (fav) out.push(`Favourite toy: the ${PROP_NAMES[fav[0]] || fav[0]} (${fav[1]}×)`);
-    for (const f of m.falls.slice(-2)) out.push(`Fell off the ${f.edge} edge`);
-    if (m.knocks) out.push(`Was knocked over ${m.knocks === 1 ? "once" : m.knocks + " times"}`);
-    if (m.refusals) out.push(`Refused to step off the edge ${m.refusals === 1 ? "once" : m.refusals + " times"}`);
-    if (m.climbed) out.push("Learned the ramp to the platform");
-    for (const n of m.notes) out.push(n);
-    return out;
-  }
   function renderMemories() {
-    const items = memoryItems(D.memory); const ul = $("memList"); ul.innerHTML = "";
-    if (!items.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Nothing yet. Go play with it."; ul.appendChild(li); }
-    for (const t of items) { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); }
+    const m = ctlAgent.memory, out = [];
+    if (S.name) out.push(`Knows you as ${S.name}`);
+    const fav = Object.entries(m.fetched).sort((a, b) => b[1] - a[1])[0];
+    if (fav) out.push(`Favourite toy: ${(PROP_CATALOG[fav[0]] && PROP_CATALOG[fav[0]].label.toLowerCase()) || fav[0]} (${fav[1]}×)`);
+    if (m.kicks) out.push(`Kicked the sock ball ${m.kicks}×`);
+    if (m.falls) out.push(`Fell off an edge ${m.falls === 1 ? "once" : m.falls + " times"}`);
+    if (m.knocks) out.push(`Was knocked over ${m.knocks === 1 ? "once" : m.knocks + " times"}`);
+    if (m.refusals) out.push(`Refused to step off an edge ${m.refusals === 1 ? "once" : m.refusals + " times"}`);
+    const ul = $("memList"); ul.innerHTML = "";
+    if (!out.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Nothing yet. Go play with it."; ul.appendChild(li); }
+    for (const t of out) { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); }
   }
-
   function enterGarage() {
-    releaseHeld(); S.task = null; D.duck.reach.weight = 0; markMat.opacity = 0;
-    if (S.fall) { S.fall = null; }
-    S.playPose = { pos: S.pos.clone(), yaw: S.yaw };
-    const wb = world.anchors.workbench.position;
-    S.pos.set(wb[0], wb[1], wb[2]); S.yaw = 0.35; S.v = S.w = 0;
-    D.duck.teleport(S.pos, S.yaw); phys.setCharPosition(S.pos); phys.syncDuckParts(D.duck); phys.snapDuckParts();
-    if (!workshop.worn) { workshop.wear(); workshop.worn = true; }
-    world.turntable.state.angularVelocity = reduced ? 0 : 0.22;
-    cam.tYaw = S.yaw + 0.5; cam.tPitch = 0.32; cam.tDist = 0.55; cam.init = false;
+    const a = ctlAgent;
+    a.releaseHeld(); a.cancelTask(); markMat.opacity = 0; setLaser(false);
+    if (G.race && G.race.active) toggleRace(false);
+    if (G.football && G.football.active) toggleFootball(false);
+    if (a.fall) { a.fall = null; a.duck.fall = null; }
+    a.duck.sitTarget = false;
+    S.playPose = { pos: a.pos.clone(), yaw: a.yaw };
+    const wb = world.workbench.position;
+    // send any duck standing on the turntable away first
+    for (const b of agents) if (b !== a && Math.hypot(b.pos.x - wb[0], b.pos.z - wb[2]) < 0.25) b.teleport(world.spawnSpot(agents.indexOf(b) + 1, agents.length + 2), b.yaw);
+    a.teleport(V(wb[0], wb[1], wb[2]), 0.35);
+    if (!a.worn) { workshop.wear(); a.worn = true; }
+    rawWorld.turntable.state.angularVelocity = reduced ? 0 : 0.22;
+    cam.tYaw = a.yaw + 0.5; cam.tPitch = 0.42; cam.tDist = 0.58; cam.init = false;
     if (S.layer === "mind") setLayer("surface");
     buildPartsUI();
   }
   function leaveGarage() {
-    world.turntable.state.angularVelocity = 0; selectPart(null);
-    const p = S.playPose || { pos: new THREE.Vector3(...start.position), yaw: 0 };
-    S.pos.copy(p.pos); S.yaw = p.yaw; D.duck.teleport(S.pos, S.yaw); phys.setCharPosition(S.pos); phys.syncDuckParts(D.duck); phys.snapDuckParts();
-    cam.tYaw = S.yaw + Math.PI - 0.7; cam.tPitch = 0.44; cam.tDist = 0.85; cam.init = false;
+    rawWorld.turntable.state.angularVelocity = 0; selectPart(null);
+    const p = S.playPose || { pos: start.position.clone(), yaw: start.yaw };
+    ctlAgent.teleport(p.pos, p.yaw);
+    cam.tYaw = p.yaw + Math.PI - 0.7; cam.tPitch = 0.44; cam.tDist = 0.85; cam.init = false;
   }
-  function updateGarage(dt) {
-    // duck rides the turntable
-    if (!S.transfer) S.yaw = wrap(S.yaw + world.turntable.state.angularVelocity * dt);
-  }
+  function updateGarage(dt) { const a = ctlAgent; a.yaw = wrap(a.yaw + rawWorld.turntable.state.angularVelocity * dt); }
 
   // ---------------------------------------------------------------- welcome
   const welcome = $("welcome");
   function dismissWelcome(name) {
     const n = (name ?? $("nameIn").value).trim().slice(0, 24);
-    D.memory.name = n || null; welcome.classList.add("away"); setTimeout(() => welcome.classList.add("hidden"), 500);
+    S.name = n || null; welcome.classList.add("away"); setTimeout(() => welcome.classList.add("hidden"), 500);
     voice.ensure(); voice.play("hello", { force: true });
-    toast(n ? `Hi ${n}!` : "Hi!", n ? "It will remember your name." : "Walk with WASD or the joystick.", "info");
+    toast(n ? `Hi ${n}!` : "Hi!", PHONE ? "Joystick to walk. Drag toys in from the bar." : "WASD to walk. Drag toys in from the bar. Press ? for all moves.", "info", 3600);
   }
   $("startBtn").onclick = () => dismissWelcome();
   $("nameIn").addEventListener("keydown", (e) => { if (e.key === "Enter") dismissWelcome(); e.stopPropagation(); });
 
   // ---------------------------------------------------------------- loop
   progress(1);
-  updatePanels();
+  updatePanels(); refreshMoves(); inv.refresh();
   let acc = 0, last = performance.now();
   function loop(now) {
     requestAnimationFrame(loop);
     let dt = Math.min(0.1, (now - last) / 1000); last = now;
-    if (TEST) return;
-    if (document.hidden) return;
+    if (TEST || document.hidden) return;
     acc += dt; let n = 0;
-    while (acc >= DT && n < 4) { simStep(DT); acc -= DT; n++; }
-    if (n === 4) acc = 0;
+    while (acc >= DT && n < 3) { simStep(DT); acc -= DT; n++; }
+    if (n === 3) acc = 0;
     render(dt);
     aq && aq.tick(dt);
   }
-  // warm-up frames so the first visible frame is posed
   for (let i = 0; i < 3; i++) simStep(DT);
   render(0);
   loadingEl.classList.add("done");
@@ -807,21 +880,37 @@ async function main() {
   requestAnimationFrame(loop);
 
   // ---------------------------------------------------------------- test hook (deterministic stepping)
+  const project = (p) => { const v = p.clone().project(camera); return [(v.x * 0.5 + 0.5) * innerWidth, (-v.y * 0.5 + 0.5) * innerHeight]; };
+  let H = 0.05; // test hooks: surface level to resolve heights at (0 = tabletop, -0.75 = floor)
   window.__lab = {
-    ready: true, S, D, mind, phys, world, workshop, camera, cam,
-    get companion() { return companion; },
+    level(y) { H = y + 0.05; },
+    ready: true, S, G, agents, renderer,
+    drawCalls() { renderer.info.autoReset = true; render(DT); return renderer.info.render.calls; }, mind, phys, world, workshop, camera, cam, inv,
+    get C() { return ctlAgent; },
     advance(sec, input) { if (input) S.testInput = input; const n = Math.round(sec / DT); for (let i = 0; i < n; i++) simStep(DT); return this.state(); },
     render(n = 1) { for (let i = 0; i < n; i++) render(DT); },
     input(fwd = 0, turn = 0) { S.testInput = { fwd, turn }; },
-    state() { return { pos: S.pos.toArray().map(v => +v.toFixed(3)), yaw: +S.yaw.toFixed(3), v: +S.v.toFixed(3), risk: +mind.risk.toFixed(3), unc: +mind.uncertainty.toFixed(3), override: S.filtered.kind, held: S.held && S.held.prop.id, task: S.task && (S.task.kind + ":" + (S.task.phase || "")), fall: S.fall && S.fall.kind, jaw: +D.duck.jaw.toFixed(3), legErr: [D.duck.legs.left.err, D.duck.legs.right.err].map(e => +(e || 0).toFixed(4)), reachErr: D.duck.reach.err }; },
-    teleport(x, z, yaw) { S.pos.set(x, world.groundHeightAt(x, z), z); S.yaw = yaw; D.duck.teleport(S.pos, yaw); phys.setCharPosition(S.pos); phys.syncDuckParts(D.duck); phys.snapDuckParts(); cam.tYaw = yaw + Math.PI - 0.7; cam.yaw = cam.tYaw; cam.init = false; },
-    camera(yawOff, pitch, dist) { cam.tYaw = cam.yaw = S.yaw + Math.PI + yawOff; cam.tPitch = cam.pitch = pitch; cam.tDist = cam.dist = dist; cam.init = false; },
-    snap() { cam.yaw = cam.tYaw; cam.pitch = cam.tPitch; cam.dist = cam.tDist; cam.init = false; },
+    state() { const C = ctlAgent; return { n: agents.length, ctl: agents.indexOf(C), pos: C.pos.toArray().map(v => +v.toFixed(3)), yaw: +C.yaw.toFixed(3), v: +C.v.toFixed(3), sv: +C.sv.length().toFixed(3), held: C.held && C.held.prop.kind, task: C.task && (C.task.kind + ":" + (C.task.phase || "")), fall: C.fall && C.fall.kind, sit: +C.duck.sitW.toFixed(2), wob: +C.duck.wobble.toFixed(2), brains: agents.map(a => a.controlled ? "you" : a.brain.state), props: phys.props.length, score: G.football && G.football.score, race: G.race && G.race.active ? { t: +G.race.t.toFixed(2), frozen: G.race.frozen, cd: +G.race.countdown.toFixed(2) } : null }; },
+    teleport(x, z, yaw, i) { const a = i == null ? ctlAgent : agents[i]; a.teleport(V(x, world.groundHeightAt(x, z, H), z), yaw); if (a === ctlAgent) { cam.tYaw = yaw + Math.PI - 0.7; cam.yaw = cam.tYaw; cam.init = false; } },
+    camera(yawOff, pitch, dist) { cam.tYaw = cam.yaw = ctlAgent.yaw + Math.PI + yawOff; cam.tPitch = cam.pitch = pitch; cam.tDist = cam.dist = dist; cam.init = false; },
     camAbs(yaw, pitch, dist) { cam.tYaw = cam.yaw = yaw; cam.tPitch = cam.pitch = pitch; cam.tDist = cam.dist = dist; cam.init = false; },
-    setMode, setLayer: (l) => { setLayer(l); for (const k in S.W) S.W[k] = k === l ? 1 : 0; }, setIntentMode, grabKey, beakDown, beakUp, poke: (x, z) => poke(new THREE.Vector3(x, 0, z)), startFetch: (id) => startFetch(phys.props.find(p => p.id === id)), startGo: (x, z) => startGo(new THREE.Vector3(x, 0, z)),
+    lookAt(x, y, z) { S.camOverride = x == null ? null : V(x, y, z); cam.init = false; },
+    snap() { cam.yaw = cam.tYaw; cam.pitch = cam.tPitch; cam.dist = cam.tDist; cam.init = false; cam.tween = 0; },
+    setMode, setLayer: (l) => { setLayer(l); for (const k in S.W) S.W[k] = k === l ? 1 : 0; }, setIntentMode, grabKey, beakDown, beakUp,
+    move: (m) => doMove(m), control: (i) => setControlled(agents[i]),
+    spawnDuck: (x, z, yaw, skin) => { const a = spawnDuck(V(x, world.groundHeightAt(x, z, H), z), yaw, skin); return a ? agents.indexOf(a) : -1; },
+    spawnProp: (kind, x, z) => { const r = spawnProp(kind, V(x, world.groundHeightAt(x, z, H), z)); return r ? phys.props.indexOf(r) : -1; },
+    laserAtWorld: (x, z) => { laser.on = true; laser.point.set(x, world.groundHeightAt(x, z, H) + 0.003, z); laser.visible = true; laser.dot.setVisible(true); laser.from.copy(camera.position); laser.dot.set(laser.point, V(0, 1, 0), camera.position.clone().add(V(0.2, 0, 0))); refreshMoves(); },
+    laserOff: () => setLaser(false),
+    football: (on) => toggleFootball(on), race: (on) => toggleRace(on),
+    kickBall: (x, z) => { const b = G.balls[0]; if (b) phys.impulse(b, V(x, 0.0, z)); },
+    placeBall: (x, z) => { const b = G.balls[0]; if (b) phys.place(b, V(x, world.groundHeightAt(x, z, H) + 0.002, z)); },
+    dragItem: (key, wx, wz, hold) => { const p = V(wx, world.groundHeightAt(wx, wz, H), wz); camera.updateMatrixWorld(); const [x, y] = project(p); return inv.dragTo(key, x, y, hold); },
+    showDragIcon: (key, wx, wz) => { const p = V(wx, world.groundHeightAt(wx, wz, H), wz); const [x, y] = project(p); let el = document.querySelector(".drag-ico"); if (!el) { el = document.createElement("div"); el.className = "drag-ico"; document.body.appendChild(el); } el.innerHTML = items.find(i => i.key === key).icon; el.style.transform = `translate(${x}px, ${y}px)`; },
+    selectItem: (k) => inv.select(k), clickAt: (x, y) => click(x, y), project: (x, y, z) => project(V(x, y, z)),
     selectPart: (id) => selectPart(workshop.parts.find(p => p.id === id)), replaceSelected,
     dismissWelcome, toast, skin: (n, t) => workshop.skin(n, t),
-    clickAt: (x, y) => click(x, y), safety: (on) => { mind.safety = on; $("safetyBtn").setAttribute("aria-pressed", String(on)); },
-    propPos: (id) => phys.props.find(p => p.id === id).object.position.toArray(),
+    safety: (on) => { mind.safety = on; $("safetyBtn").setAttribute("aria-pressed", String(on)); },
+    poke: (x, z) => ctlAgent.poke(V(x, 0, z)),
   };
 }

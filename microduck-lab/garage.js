@@ -1,7 +1,7 @@
 // garage.js — Garage workbench: replaceable parts, pop-off / slide-in replacement, highlight,
-// skins (via look.js setSkin), and the glowing memory orb used for a memory transfer.
+// and skins (via look.js setSkin).
 import * as THREE from "three";
-import { setSkin, setPartCondition, markReplaced, makeGlowTexture } from "./look.js";
+import { setSkin, setPartCondition, markReplaced } from "./look.js";
 
 const SERVOS = [
   ["servo_left_hip_yaw", "Left hip yaw"], ["servo_left_hip_roll", "Left hip roll"], ["servo_left_hip_pitch", "Left hip pitch"],
@@ -143,45 +143,3 @@ export class Workshop {
 }
 
 function smoothstep(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-
-/** glowing memory orb that travels from one duck's head to another's */
-export class MemoryOrb {
-  constructor(scene) {
-    this.scene = scene;
-    const tex = makeGlowTexture();
-    this.group = new THREE.Group(); this.group.visible = false; this.group.userData.lookFX = true; scene.add(this.group);
-    this.core = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color("#E9D5FF").multiplyScalar(3), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.core.scale.setScalar(0.05); this.group.add(this.core);
-    this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color("#BF5AF2").multiplyScalar(1.6), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.halo.scale.setScalar(0.14); this.group.add(this.halo);
-    this.trail = [];
-    for (let i = 0; i < 26; i++) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: new THREE.Color("#BF5AF2").multiplyScalar(1.4), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 }));
-      s.scale.setScalar(0.02); s.userData.lookFX = true; scene.add(s); this.trail.push({ s, p: new THREE.Vector3(), life: 0 });
-    }
-    this.light = new THREE.PointLight(0xc58cff, 0, 0.5, 2); this.group.add(this.light);
-    this.anim = null;
-  }
-  /** fly from getA() to getB() (functions returning world positions) over dur seconds */
-  fly(getA, getB, dur = 2.6, onDone) {
-    this.group.visible = true; let t = 0, k = 0;
-    this.anim = (dt) => {
-      t += dt; const u = Math.min(1, t / dur);
-      const A = getA(), B = getB();
-      // rise out of A, arc, descend into B
-      const e = u < 0.2 ? 0 : (u > 0.85 ? 1 : (u - 0.2) / 0.65);
-      const ee = e * e * (3 - 2 * e);
-      const p = A.clone().lerp(B, ee); p.y += Math.sin(Math.PI * ee) * 0.16 + (u < 0.2 ? u / 0.2 * 0.05 : (u > 0.85 ? (1 - (u - 0.85) / 0.15) * 0.05 : 0.05));
-      this.group.position.copy(p);
-      const grow = u < 0.15 ? u / 0.15 : (u > 0.9 ? (1 - u) / 0.1 : 1);
-      const pulse = 1 + 0.12 * Math.sin(t * 14);
-      this.core.scale.setScalar(0.045 * grow * pulse); this.halo.scale.setScalar(0.16 * grow * pulse);
-      this.light.intensity = 0.012 * grow;
-      // trail
-      const tr = this.trail[k++ % this.trail.length]; tr.p.copy(p).add(new THREE.Vector3((Math.random() - .5) * 0.01, (Math.random() - .5) * 0.01, (Math.random() - .5) * 0.01)); tr.life = 1;
-      for (const q of this.trail) { q.life = Math.max(0, q.life - dt * 1.8); q.s.position.copy(q.p); q.s.material.opacity = q.life * grow; q.s.scale.setScalar(0.022 * q.life); q.s.visible = q.life > 0; }
-      if (u >= 1) { this.light.intensity = 0; this.group.visible = false; this.trail.forEach(q => q.s.visible = false); this.anim = null; onDone && onDone(); }
-    };
-  }
-  update(dt) { if (this.anim) this.anim(dt); }
-}
