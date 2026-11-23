@@ -17,7 +17,9 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   makeFoamCube, makeRing, makeRubberDuck, makePencil, makeSockBall, makeKey, makeBottleCap,
   makeCrayon, makeBreadCrust, makeToyBrick, placeProp,
+  makeChessPawn, makeChessKnight, makeWickerBall, makeToyCar, makeCookie, makeToast, makeCroissant,
 } from "./props.js";
+import { assets } from "./assets.js";
 
 export const TABLE = { width: 1.6, depth: 1.0, thickness: 0.04, height: 0.75, legInset: 0.07 };
 export const FLOOR_Y = -TABLE.height;
@@ -100,6 +102,14 @@ export function makeWoodTextures(renderer, { size = 1024, seed = 7, base = [186,
   const rough = canvasFrom(w, h, (d) => { for (let i = 0; i < w * h; i++) { const r = Math.min(255, RO[i] * 255); d[i * 4] = r; d[i * 4 + 1] = r; d[i * 4 + 2] = r; d[i * 4 + 3] = 255; } });
   const normal = canvasFrom(w, h, normalFromHeight(H, w, h, 1.6));
   return { map: tex(map, renderer, true), roughnessMap: tex(rough, renderer, false), normalMap: tex(normal, renderer, false) };
+}
+// procedural tiling normal + roughness maps from a height function h(u, v) in [0,1]^2
+function proceduralPBR(renderer, size, heightFn, { strength = 2, roughBase = 0.8, roughAmp = 0.1, repeat = [1, 1] } = {}) {
+  const H = new Float32Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) H[y * size + x] = heightFn(x / size, y / size);
+  const normal = canvasFrom(size, size, normalFromHeight(H, size, size, strength));
+  const rough = canvasFrom(size, size, (d) => { for (let i = 0; i < size * size; i++) { const r = Math.min(255, Math.max(0, (roughBase + (H[i] - 0.5) * roughAmp) * 255)); d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = r; d[i * 4 + 3] = 255; } });
+  return { normalMap: tex(normal, renderer, false, repeat), roughnessMap: tex(rough, renderer, false, repeat) };
 }
 function drawCanvas(w, h, draw) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h); return c; }
 function speckle(g, w, h, n, alpha, light, R) { for (let i = 0; i < n; i++) { g.fillStyle = light ? `rgba(255,255,255,${alpha * R()})` : `rgba(0,0,0,${alpha * R()})`; g.fillRect(R() * w, R() * h, 1 + R() * 1.5, 1 + R() * 1.5); } }
@@ -201,13 +211,24 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   [floorWood.map, floorWood.roughnessMap, floorWood.normalMap].forEach(t => t.repeat.set(RW, RD));
   const floorMat = tint(new THREE.MeshPhysicalMaterial({ name: "floor", map: floorWood.map, roughnessMap: floorWood.roughnessMap, normalMap: floorWood.normalMap,
     normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.9, clearcoat: 0.25, clearcoatRoughness: 0.3, envMapIntensity: 0.6 }));
+  {
+    const rep = [RW / 2.0, RD / 1.0];   // the wood-floor tile is 2:1, covering 2 m x 1 m (eight 12.5 cm planks)
+    Promise.all([assets.texture("floor_color.webp", 0, { srgb: true, repeat: rep }), assets.texture("floor_normal.webp", 0, { repeat: rep }), assets.texture("floor_roughness.webp", 0, { repeat: rep })])
+      .then(([c, n, r]) => { floorMat.map = c; floorMat.normalMap = n; floorMat.roughnessMap = r; floorMat.normalScale.set(0.8, -0.8);
+        floorMat.roughness = 1; floorMat.clearcoat = 0.05; floorMat.clearcoatRoughness = 0.35; floorMat.envMapIntensity = 0.4; floorMat.needsUpdate = true; })
+      .catch((e) => console.warn("floor textures:", e && e.message));
+  }
   const floor = add(new THREE.Mesh(new THREE.PlaneGeometry(RW, RD).rotateX(-Math.PI / 2), floorMat));
   floor.position.set((ROOM.x0 + ROOM.x1) / 2, F, (ROOM.z0 + ROOM.z1) / 2); floor.castShadow = false; floor.name = "world_floor";
   cuboid("room_floor", 0, F - 0.05, 0, 3.2, 0.05, 2.7);
 
   // walls: warm plaster, white baseboard, window on the back wall
   const plaster = drawCanvas(512, 512, (g, w, h) => { const R = rng(5); g.fillStyle = "#DDD3C3"; g.fillRect(0, 0, w, h); speckle(g, w, h, 9000, 0.05, false, R); speckle(g, w, h, 6000, 0.08, true, R); });
-  const wallMat = tint(new THREE.MeshStandardMaterial({ name: "wall", map: tex(plaster, renderer, true, [4, 2]), roughness: 0.95, envMapIntensity: 0.5 }));
+  const plasterN = makeNoise2(41);
+  const plasterPBR = proceduralPBR(renderer, hi ? 512 : 256, (u, v) => plasterN(u * 16, v * 16, 16, 16) * 0.6 + plasterN(u * 64, v * 64, 64, 64) * 0.4,
+    { strength: 0.9, roughBase: 0.88, roughAmp: 0.12, repeat: [8, 3.5] });
+  const wallMat = tint(new THREE.MeshStandardMaterial({ name: "wall", map: tex(plaster, renderer, true, [4, 2]), normalMap: plasterPBR.normalMap, normalScale: new THREE.Vector2(0.35, 0.35),
+    roughnessMap: plasterPBR.roughnessMap, roughness: 1, envMapIntensity: 0.5 }));
   const trimMat = tint(new THREE.MeshStandardMaterial({ name: "trim", color: "#F6F3EE", roughness: 0.5, envMapIntensity: 0.7 }));
   const WH = ROOM.wallHeight, WT = 0.12;
   const WIN = { x: 0.9, w: 1.4, y0: F + 0.85, h: 1.25 };
@@ -240,17 +261,24 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   shell.box(WIN.w, 0.035, 0.05, trimMat, WIN.x, WIN.y0 + WIN.h * 0.55, ROOM.z0 - 0.04);
   // the view outside: soft daylight sky + a hint of garden (emissive, gentle bloom on the brightest part)
   const skyMat = new THREE.ShaderMaterial({
-    uniforms: { uDim: { value: 1 } },
-    vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
-    fragmentShader: `uniform float uDim; varying vec2 vUv;
+    uniforms: { uDim: { value: 1 }, uView: { value: null }, uHasView: { value: 0 }, uYaw: { value: 1.2 } },
+    vertexShader: "varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }",
+    fragmentShader: `uniform float uDim, uHasView, uYaw; uniform sampler2D uView; varying vec2 vUv; varying vec3 vW;
       void main(){ vec3 sky = mix(vec3(1.25, 1.22, 1.15), vec3(0.62, 0.8, 1.05), smoothstep(0.25, 1.0, vUv.y));
         float hedge = smoothstep(0.32, 0.29, vUv.y + 0.03 * sin(vUv.x * 23.0) * sin(vUv.x * 7.0));
         vec3 c = mix(sky, vec3(0.28, 0.42, 0.24), hedge);
+        if (uHasView > 0.5) {
+          vec3 d = normalize(vW - cameraPosition);
+          vec2 e = vec2(atan(d.x, -d.z) / 6.2831853 + 0.5 + uYaw / 6.2831853, 0.5 + asin(clamp(d.y, -1.0, 1.0)) / 3.1415927 + 0.13);
+          c = texture2D(uView, e).rgb * 1.35;
+        }
         gl_FragColor = vec4(c * 1.6 * uDim, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
+  assets.texture("window_view.jpg", 1, { srgb: true }).then((t) => { t.wrapS = THREE.RepeatWrapping; t.needsUpdate = true; skyMat.uniforms.uView.value = t; skyMat.uniforms.uHasView.value = 1; })
+    .catch((e) => console.warn("window view:", e && e.message));
   const sky = new THREE.Mesh(new THREE.PlaneGeometry(WIN.w, WIN.h), skyMat);
   sky.position.set(WIN.x, WIN.y0 + WIN.h / 2, ROOM.z0 - 0.09); sky.userData.lookNoContact = true; root.add(sky);
   // sheer curtains (rippled planes)
@@ -394,47 +422,53 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   blobs.add((ACC.xFoot + ACC.xLand1) / 2, F + 0.001, (LZ0 + LZ1) / 2, (ACC.xLand1 - ACC.xFoot) * 1.25, (LZ1 - LZ0) * 1.6, 0.4, true);
   blocker(ACC.xFoot, F, LZ0, ACC.xLand1, F + ACC.hLand + 0.03, LZ1);
 
-  // ================================================================ SOFA, COFFEE TABLE, SHELF, PLANT
+  // ================================================================ SOFA, COFFEE TABLE, SHELF, PLANT, POUF
+  // Each piece is a holder group with a light procedural placeholder; the real PBR model streams in and
+  // replaces the placeholder at the same footprint. Colliders are sized to the real models.
+  const holder = (name) => { const g = new THREE.Group(); g.name = name; root.add(g); return g; };
   const fabric = drawCanvas(256, 256, (g, w, h) => { g.fillStyle = "#8C8578"; g.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 2) { g.fillStyle = `rgba(255,255,255,${0.04 + 0.03 * ((y / 2) % 2)})`; g.fillRect(0, y, w, 1); }
     for (let x = 0; x < w; x += 2) { g.fillStyle = "rgba(0,0,0,0.04)"; g.fillRect(x, 0, 1, h); } });
-  const sofaMat = tint(new THREE.MeshPhysicalMaterial({ name: "sofa", map: tex(fabric, renderer, true, [6, 6]), color: "#C9C1B3", roughness: 0.95, sheen: 1, sheenRoughness: 0.5,
-    sheenColor: new THREE.Color("#f3ece0"), envMapIntensity: 0.5 }));
-  const SOFA = { x: -1.65, z: -2.03, L: 2.0, D: 0.86, seat: 0.42, back: 0.8, arm: 0.6 };
+  const sofaMat = tint(new THREE.MeshPhysicalMaterial({ name: "sofa", map: tex(fabric, renderer, true, [6, 6]), color: "#5E6B5E", roughness: 0.95, sheen: 1, sheenRoughness: 0.5,
+    sheenColor: new THREE.Color("#c9d6c4"), envMapIntensity: 0.5 }));
+  // Glam velvet sofa: 2.19 x 0.79 x 1.02 m, seat top 0.46 m, back against the wall, front facing +Z
+  const SOFA = { x: -1.66, z: ROOM.z0 + 0.54, L: 2.19, D: 1.02, seat: 0.46, back: 0.72, arm: 0.6 };
   const sx0 = SOFA.x - SOFA.L / 2, sz0 = SOFA.z - SOFA.D / 2;
-  batch.box(SOFA.L, 0.26, SOFA.D, sofaMat, SOFA.x, F + 0.08 + 0.13, SOFA.z, 0, 0.03);                         // base
-  for (const k of [-1, 1]) {
-    batch.box(SOFA.L / 2 - 0.2, 0.15, SOFA.D - 0.24, sofaMat, SOFA.x + k * (SOFA.L / 4 - 0.05), F + SOFA.seat - 0.075, SOFA.z + 0.08, 0, 0.06); // seat cushions
-    batch.box(SOFA.L / 2 - 0.22, 0.42, 0.2, sofaMat, SOFA.x + k * (SOFA.L / 4 - 0.05), F + SOFA.seat + 0.18, sz0 + 0.2, 0, 0.08);   // back cushions
-    batch.box(0.18, SOFA.arm - 0.08, SOFA.D, sofaMat, SOFA.x + k * (SOFA.L / 2 - 0.09), F + 0.08 + (SOFA.arm - 0.08) / 2, SOFA.z, 0, 0.06); // arms
+  const sofaHolder = holder("sofa");
+  {
+    const b = new Batch();
+    b.box(SOFA.L, 0.24, SOFA.D - 0.04, sofaMat, SOFA.x, F + 0.06 + 0.12, SOFA.z, 0, 0.03);
+    b.box(SOFA.L - 0.1, 0.12, SOFA.D - 0.3, sofaMat, SOFA.x, F + SOFA.seat - 0.06, SOFA.z + 0.1, 0, 0.05);
+    b.box(SOFA.L, SOFA.back - 0.06, 0.24, sofaMat, SOFA.x, F + 0.06 + (SOFA.back - 0.06) / 2, sz0 + 0.12, 0, 0.08);
+    for (const k of [-1, 1]) b.box(0.18, SOFA.arm - 0.06, SOFA.D - 0.04, sofaMat, SOFA.x + k * (SOFA.L / 2 - 0.09), F + 0.06 + (SOFA.arm - 0.06) / 2, SOFA.z, 0, 0.06);
+    b.build(sofaHolder, { name: "sofa_placeholder" });
   }
-  batch.box(SOFA.L, SOFA.back - 0.08, 0.14, sofaMat, SOFA.x, F + 0.08 + (SOFA.back - 0.08) / 2, sz0 + 0.07, 0, 0.05);   // back frame
-  const sofaLegs = []; for (const lx of [-1, 1]) for (const lz of [-1, 1]) sofaLegs.push([SOFA.x + lx * (SOFA.L / 2 - 0.1), SOFA.z + lz * (SOFA.D / 2 - 0.08)]);
-  for (const [lx, lz] of sofaLegs) batch.add(new THREE.CylinderGeometry(0.02, 0.014, 0.08, 16), legMat, M4(lx, F + 0.04, lz));
+  assets.swapIn(sofaHolder, "sofa", { prio: 1, position: [SOFA.x, F, SOFA.z] });
   cuboid("sofa", SOFA.x, F + SOFA.seat / 2, SOFA.z, SOFA.L / 2, SOFA.seat / 2, SOFA.D / 2);
-  cuboid("sofa_back", SOFA.x, F + SOFA.back / 2, sz0 + 0.1, SOFA.L / 2, SOFA.back / 2, 0.1);
-  for (const k of [-1, 1]) cuboid("sofa_arm", SOFA.x + k * (SOFA.L / 2 - 0.09), F + SOFA.arm / 2, SOFA.z, 0.09, SOFA.arm / 2, SOFA.D / 2);
+  cuboid("sofa_back", SOFA.x, F + SOFA.back / 2, sz0 + 0.12, SOFA.L / 2, SOFA.back / 2, 0.12);
+  for (const k of [-1, 1]) cuboid("sofa_arm", SOFA.x + k * (SOFA.L / 2 - 0.08), F + SOFA.arm / 2, SOFA.z, 0.08, SOFA.arm / 2, SOFA.D / 2);
   rect(sx0, sx0 + SOFA.L, sz0, sz0 + SOFA.D, F + SOFA.seat, "sofa_seat");
-  blobs.add(SOFA.x, F + 0.001, SOFA.z, SOFA.L * 1.15, SOFA.D * 1.35, 0.55, true);
-  blocker(sx0 - 0.03, F, sz0 - 0.05, sx0 + SOFA.L + 0.03, F + SOFA.back + 0.03, sz0 + SOFA.D + 0.03);
-  // throw cushion
-  const cushionMat = tint(new THREE.MeshPhysicalMaterial({ name: "cushion", color: "#C9714B", roughness: 0.9, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color("#ffc9a8") }));
-  batch.add(new RoundedBoxGeometry(0.4, 0.38, 0.12, 4, 0.06), cushionMat, M4(SOFA.x - 0.55, F + SOFA.seat + 0.18, sz0 + 0.33, -0.25, 0.25, 0.08));
+  blobs.add(SOFA.x, F + 0.001, SOFA.z, SOFA.L * 1.12, SOFA.D * 1.3, 0.55, true);
+  blocker(sx0 - 0.03, F, sz0 - 0.05, sx0 + SOFA.L + 0.03, F + 0.8, sz0 + SOFA.D + 0.03);
 
-  // coffee table: light oak top, black steel legs; a mug and two magazines on top
-  const CT = { x: -1.65, z: -1.12, w: 1.0, d: 0.52, h: 0.4, t: 0.035 };
+  // coffee table: light oak top, black steel legs; a teacup and two magazines on top
+  const CT = { x: -1.66, z: -1.0, w: 1.0, d: 0.48, h: 0.4, t: 0.035 };
   batch.box(CT.w, CT.t, CT.d, woodMat, CT.x, F + CT.h - CT.t / 2, CT.z, 0, 0.008);
   const steel = tint(new THREE.MeshStandardMaterial({ name: "steel", color: "#2A2B2E", metalness: 0.6, roughness: 0.45 }));
+  const brass = tint(new THREE.MeshStandardMaterial({ name: "brass", color: "#C9A24A", metalness: 1, roughness: 0.3 }));
   for (const lx of [-1, 1]) for (const lz of [-1, 1]) {
     const px = CT.x + lx * (CT.w / 2 - 0.06), pz = CT.z + lz * (CT.d / 2 - 0.06);
-    batch.add(new THREE.CylinderGeometry(0.014, 0.014, CT.h - CT.t, 12), steel, M4(px, F + (CT.h - CT.t) / 2, pz));
+    // tapered walnut legs, slightly splayed, with brass feet
+    batch.add(new THREE.CylinderGeometry(0.019, 0.012, CT.h - CT.t - 0.02, 20), legMat, M4(px, F + 0.02 + (CT.h - CT.t - 0.02) / 2, pz, -lz * 0.06, 0, lx * 0.06));
+    batch.add(new THREE.CylinderGeometry(0.0125, 0.011, 0.022, 16), brass, M4(px + lx * 0.0105, F + 0.011, pz + lz * 0.0105));
     colliders.push({ id: "coffee_leg", type: "cylinder", radius: 0.016, halfHeight: (CT.h - CT.t) / 2, position: [px, F + (CT.h - CT.t) / 2, pz], rotation: Q0, friction: 0.6 });
   }
   cuboid("coffee_table_top", CT.x, F + CT.h - CT.t / 2, CT.z, CT.w / 2, CT.t / 2, CT.d / 2);
   rect(CT.x - CT.w / 2, CT.x + CT.w / 2, CT.z - CT.d / 2, CT.z + CT.d / 2, F + CT.h, "coffee_table");
-  const mugMat = tint(new THREE.MeshPhysicalMaterial({ name: "mug", color: "#2F5D62", roughness: 0.25, clearcoat: 0.8 }));
-  batch.add(new THREE.CylinderGeometry(0.042, 0.038, 0.095, 32), mugMat, M4(CT.x + 0.3, F + CT.h + 0.0475, CT.z - 0.08));
-  batch.add(new THREE.TorusGeometry(0.024, 0.007, 10, 24), mugMat, M4(CT.x + 0.345, F + CT.h + 0.05, CT.z - 0.08));
+  const mugMat = tint(new THREE.MeshPhysicalMaterial({ name: "mug", color: "#EDE8E0", roughness: 0.25, clearcoat: 0.8 }));
+  const cupHolder = holder("teacup");
+  { const b = new Batch(); b.add(new THREE.CylinderGeometry(0.042, 0.032, 0.06, 32), mugMat, M4(CT.x + 0.3, F + CT.h + 0.03, CT.z - 0.06)); b.build(cupHolder, { name: "cup_placeholder" }); }
+  assets.swapIn(cupHolder, "teacup", { prio: 2, position: [CT.x + 0.28, F + CT.h, CT.z - 0.05], rotationY: 0.6 });
   const magA = tint(new THREE.MeshStandardMaterial({ name: "magazineA", color: "#E3B23C", roughness: 0.6 }));
   const magB = tint(new THREE.MeshStandardMaterial({ name: "magazineB", color: "#D9D3C7", roughness: 0.6 }));
   batch.add(new THREE.BoxGeometry(0.21, 0.006, 0.28), magB, M4(CT.x - 0.2, F + CT.h + 0.003, CT.z, 0, 0.2));
@@ -442,7 +476,7 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   blobs.add(CT.x, F + 0.001, CT.z, CT.w * 1.25, CT.d * 1.5, 0.3, true);
   blocker(CT.x - CT.w / 2 - 0.02, F + CT.h - CT.t - 0.02, CT.z - CT.d / 2 - 0.02, CT.x + CT.w / 2 + 0.02, F + CT.h + 0.1, CT.z + CT.d / 2 + 0.02);
 
-  // low shelf under the window, with books, a vase and a radio
+  // low shelf under the window, with books, a vase of flowers and a boom box
   const SH = { x: 0.9, z: ROOM.z0 + 0.19, w: 1.3, d: 0.34, h: 0.46 };
   const shelfMat = tint(new THREE.MeshPhysicalMaterial({ name: "shelf", color: "#EDE6DA", roughness: 0.55, clearcoat: 0.2, envMapIntensity: 0.7 }));
   batch.box(SH.w, 0.025, SH.d, shelfMat, SH.x, F + SH.h - 0.0125, SH.z, 0, 0.004);
@@ -456,44 +490,44 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   while (bx < SH.x - 0.05) { const bw = 0.02 + BR() * 0.025, bh = 0.2 + BR() * 0.12;
     batch.box(bw, bh, 0.22, bookMats[Math.floor(BR() * bookMats.length)], bx + bw / 2, F + 0.0725 + bh / 2, SH.z + 0.02); bx += bw + 0.002; }
   const vaseMat = tint(new THREE.MeshPhysicalMaterial({ name: "vase", color: "#D7C7B0", roughness: 0.35, clearcoat: 0.6 }));
-  batch.add(new THREE.LatheGeometry([0, 0.05, 0.065, 0.07, 0.05, 0.03, 0.035].map((r, i) => new THREE.Vector2(r, i * 0.035)), 32), vaseMat, M4(SH.x + 0.3, F + SH.h, SH.z));
-  const radioMat = tint(new THREE.MeshPhysicalMaterial({ name: "radio", color: "#C2462E", roughness: 0.4, clearcoat: 0.6 }));
-  batch.box(0.24, 0.14, 0.1, radioMat, SH.x - 0.3, F + SH.h + 0.07, SH.z, 0, 0.02);
-  batch.box(0.18, 0.012, 0.012, steel, SH.x - 0.3, F + SH.h + 0.16, SH.z - 0.02);
+  const vaseHolder = holder("vase");
+  { const b = new Batch(); b.add(new THREE.LatheGeometry([0, 0.04, 0.05, 0.05, 0.04, 0.03, 0.03].map((r, i) => new THREE.Vector2(r, i * 0.03)), 32), vaseMat, M4(SH.x + 0.35, F + SH.h, SH.z + 0.02)); b.build(vaseHolder, { name: "vase_placeholder" }); }
+  assets.swapIn(vaseHolder, "vase", { prio: 2, position: [SH.x + 0.35, F + SH.h, SH.z + 0.02], scale: 1.6, rotationY: 0.4 });
+  const radioMat = tint(new THREE.MeshPhysicalMaterial({ name: "radio", color: "#3A3C40", roughness: 0.4, clearcoat: 0.6 }));
+  const boomHolder = holder("boombox");
+  { const b = new Batch(); b.box(0.29, 0.28, 0.29, radioMat, SH.x - 0.3, F + SH.h + 0.14, SH.z + 0.02, 0, 0.02); b.build(boomHolder, { name: "boombox_placeholder" }); }
+  assets.swapIn(boomHolder, "boombox", { prio: 2, position: [SH.x - 0.3, F + SH.h, SH.z + 0.02], scale: 0.8 });
   cuboid("shelf", SH.x, F + SH.h / 2, SH.z, SH.w / 2, SH.h / 2, SH.d / 2);
   rect(SH.x - SH.w / 2, SH.x + SH.w / 2, SH.z - SH.d / 2, SH.z + SH.d / 2, F + SH.h, "shelf_top");
   blobs.add(SH.x, F + 0.001, SH.z, SH.w * 1.15, SH.d * 1.6, 0.4, true);
-  blocker(SH.x - SH.w / 2 - 0.02, F, SH.z - SH.d / 2 - 0.02, SH.x + SH.w / 2 + 0.02, F + SH.h + 0.2, SH.z + SH.d / 2 + 0.02);
+  blocker(SH.x - SH.w / 2 - 0.02, F, SH.z - SH.d / 2 - 0.02, SH.x + SH.w / 2 + 0.02, F + SH.h + 0.32, SH.z + SH.d / 2 + 0.02);
 
-  // potted plant in the back-right corner (instanced leaves)
-  const PL = { x: 2.55, z: -2.08, r: 0.2, h: 0.38 };
+  // potted plant in the back-right corner: 0.70 x 0.84 x 0.66 m, pot 0.47 m wide (pot centre offset in the model)
+  const PL = { x: 2.52, z: -2.08, r: 0.23, h: 0.336, ox: 0.046, oz: 0.091 };
   const potMat = tint(new THREE.MeshPhysicalMaterial({ name: "terracotta", color: "#B8653E", roughness: 0.8, sheen: 0.3 }));
-  batch.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(PL.r * 0.75, 0), new THREE.Vector2(PL.r * 0.95, PL.h * 0.85),
-    new THREE.Vector2(PL.r, PL.h * 0.86), new THREE.Vector2(PL.r, PL.h), new THREE.Vector2(PL.r * 0.9, PL.h)], 40), potMat, M4(PL.x, F, PL.z));
-  const soilMat = new THREE.MeshStandardMaterial({ name: "soil", color: "#3A2A1E", roughness: 1 });
-  batch.add(new THREE.CircleGeometry(PL.r * 0.9, 32).rotateX(-Math.PI / 2), soilMat, M4(PL.x, F + PL.h - 0.03, PL.z));
-  const stemMat = tint(new THREE.MeshStandardMaterial({ name: "stem", color: "#4B6B35", roughness: 0.7 }));
-  const leafShape = new THREE.Shape(); leafShape.moveTo(0, 0); leafShape.bezierCurveTo(0.12, 0.05, 0.14, 0.24, 0, 0.34); leafShape.bezierCurveTo(-0.14, 0.24, -0.12, 0.05, 0, 0);
-  const leafGeo = new THREE.ShapeGeometry(leafShape, 10); { const p = leafGeo.attributes.position;
-    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, -Math.abs(x) * 0.5 + y * y * 0.6); } leafGeo.computeVertexNormals(); }
-  const leafMat = tint(new THREE.MeshPhysicalMaterial({ name: "leaf", color: "#2F6B33", roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.3, side: THREE.DoubleSide, sheen: 0.3, sheenColor: new THREE.Color("#b6e3a0") }));
-  const NL = 18, leaves = new THREE.InstancedMesh(leafGeo, leafMat, NL); const LR = rng(3), lm = new THREE.Matrix4();
-  for (let i = 0; i < NL; i++) {
-    // leaves fan out on arching stems; outer ones lean further over
-    const a = i * 2.39996 + LR() * 0.3, len = 0.3 + LR() * 0.55, lean = 0.25 + (len - 0.3) * 0.9;
-    const base = new THREE.Vector3(PL.x + Math.cos(a) * lean * 0.55, F + PL.h + len * 0.85, PL.z + Math.sin(a) * lean * 0.55);
-    const tilt = 0.9 + LR() * 0.6, sc = 1.25 + LR() * 0.6;
-    lm.compose(base, new THREE.Quaternion().setFromEuler(new THREE.Euler(-tilt, -a + Math.PI / 2, (LR() - 0.5) * 0.4, "YXZ")), new THREE.Vector3(sc, sc, sc));
-    leaves.setMatrixAt(i, lm);
-    const stem = new THREE.CylinderGeometry(0.004, 0.006, 1, 6).translate(0, 0.5, 0);
-    const from = new THREE.Vector3(PL.x, F + PL.h - 0.03, PL.z), dir = base.clone().sub(from);
-    batch.add(stem, stemMat, new THREE.Matrix4().compose(from, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()), new THREE.Vector3(1, dir.length(), 1)));
+  const leafMat = tint(new THREE.MeshPhysicalMaterial({ name: "leaf", color: "#2F6B33", roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.3, side: THREE.DoubleSide }));
+  const plantHolder = holder("plant");
+  {
+    const b = new Batch();
+    b.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(PL.r * 0.75, 0), new THREE.Vector2(PL.r, PL.h), new THREE.Vector2(PL.r * 0.9, PL.h)], 32), potMat, M4(PL.x, F, PL.z));
+    b.add(new THREE.IcosahedronGeometry(0.3, 1), leafMat, new THREE.Matrix4().compose(new THREE.Vector3(PL.x, F + PL.h + 0.25, PL.z), new THREE.Quaternion(), new THREE.Vector3(1, 0.8, 1)));
+    b.build(plantHolder, { name: "plant_placeholder" });
   }
-  leaves.castShadow = true; leaves.receiveShadow = true; leaves.userData.lookNoContact = true; root.add(leaves);
+  assets.swapIn(plantHolder, "plant", { prio: 1, position: [PL.x - PL.ox, F, PL.z - PL.oz] });
   colliders.push({ id: "plant_pot", type: "cylinder", radius: PL.r, halfHeight: PL.h / 2, position: [PL.x, F + PL.h / 2, PL.z], rotation: Q0, friction: 0.8 });
   disc(PL.x, PL.z, PL.r, F + PL.h, "plant_pot");
   blobs.add(PL.x, F + 0.001, PL.z, PL.r * 3, PL.r * 3, 0.5);
-  blocker(PL.x - 0.45, F, PL.z - 0.45, PL.x + 0.45, F + 1.4, PL.z + 0.45);
+  blocker(PL.x - 0.4, F, PL.z - 0.4, PL.x + 0.4, F + 0.9, PL.z + 0.4);
+
+  // silk pouf between the sofa and the shelf: 0.61 m wide, 0.2 m tall
+  const PF = { x: -0.15, z: -2.06, r: 0.3, h: 0.2 };
+  const poufHolder = holder("pouf");
+  { const b = new Batch(); b.add(new THREE.CylinderGeometry(PF.r, PF.r * 0.95, PF.h, 40), sofaMat, M4(PF.x, F + PF.h / 2, PF.z)); b.build(poufHolder, { name: "pouf_placeholder" }); }
+  assets.swapIn(poufHolder, "pouf", { prio: 2, position: [PF.x, F, PF.z] });
+  colliders.push({ id: "pouf", type: "cylinder", radius: PF.r, halfHeight: PF.h / 2, position: [PF.x, F + PF.h / 2, PF.z], rotation: Q0, friction: 0.9 });
+  disc(PF.x, PF.z, PF.r, F + PF.h, "pouf");
+  blobs.add(PF.x, F + 0.001, PF.z, PF.r * 2.8, PF.r * 2.8, 0.45);
+  blocker(PF.x - PF.r, F, PF.z - PF.r, PF.x + PF.r, F + PF.h + 0.02, PF.z + PF.r);
 
   // ================================================================ RUG + FOOTBALL PITCH
   const RUG = { x: -1.93, z: 0.73, w: 1.85, d: 3.1, t: 0.006 };
@@ -525,6 +559,17 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const rugMat = tint(new THREE.MeshPhysicalMaterial({ name: "rug", map: tex(rugCanvas, renderer, true), roughness: 1, sheen: 1, sheenRoughness: 0.55,
     sheenColor: new THREE.Color("#fff6e6"), envMapIntensity: 0.4 }));
   rugMat.map.wrapS = rugMat.map.wrapT = THREE.ClampToEdgeWrapping;
+  {
+    const wn = makeNoise2(77);
+    const weave = proceduralPBR(renderer, hi ? 256 : 128, (u, v) => {
+      // basket weave: alternating warp/weft loops + fibre noise
+      const cu = u * 24, cv = v * 24, iu = Math.floor(cu), iv = Math.floor(cv), fu = cu - iu, fv = cv - iv;
+      const warp = (iu + iv) % 2 === 0;
+      const loop = warp ? Math.sin(fu * Math.PI) * (0.6 + 0.4 * Math.sin(fv * Math.PI * 2)) : Math.sin(fv * Math.PI) * (0.6 + 0.4 * Math.sin(fu * Math.PI * 2));
+      return loop * 0.7 + wn(u * 96, v * 96, 96, 96) * 0.3;
+    }, { strength: 3.5, roughBase: 0.92, roughAmp: 0.1, repeat: [RUG.w / 0.08, RUG.d / 0.08] });
+    rugMat.normalMap = weave.normalMap; rugMat.normalScale.set(0.6, 0.6); rugMat.roughnessMap = weave.roughnessMap; rugMat.needsUpdate = true;
+  }
   const rug = add(new THREE.Mesh(new RoundedBoxGeometry(RUG.w, RUG.t, RUG.d, 2, 0.003), rugMat));
   rug.position.set(RUG.x, F + RUG.t / 2, RUG.z); rug.castShadow = false; rug.name = "world_rug";
   cuboid("rug", RUG.x, F + RUG.t / 2, RUG.z, RUG.w / 2, RUG.t / 2, RUG.d / 2, Q0, 0.95);
@@ -592,6 +637,16 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(1, 1, 1)));
   });
   for (const im of [cones, bands]) { im.castShadow = true; im.receiveShadow = true; im.userData.lookNoContact = true; root.add(im); }
+  assets.model("cone", 2).then((m) => {
+    m.updateMatrixWorld(true);
+    m.traverse((o) => {
+      if (!o.isMesh) return;
+      const im = new THREE.InstancedMesh(o.geometry, o.material, checkpoints.length);
+      checkpoints.forEach((c, i) => im.setMatrixAt(i, new THREE.Matrix4().makeTranslation(c.position[0], F, c.position[2]).multiply(o.matrixWorld)));
+      im.castShadow = true; im.receiveShadow = true; im.userData.lookNoContact = true; im.name = "cone_model"; root.add(im);
+    });
+    root.remove(cones, bands);
+  }).catch((e) => console.warn("cone model:", e && e.message));
 
   // ================================================================ GARAGE CORNER (floor turntable on a rubber mat)
   const GA = { x: 2.2, z: 1.78, mw: 1.25, md: 1.0, r: 0.2, h: 0.018 };
@@ -632,6 +687,12 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
 
   // ================================================================ build merged statics
   const statics = [...batch.build(root, { name: "static" }), ...shell.build(root, { name: "shell", cast: false })];
+  {
+    const worldMats = new Set();
+    root.traverse((o) => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m.isMeshStandardMaterial) worldMats.add(m); }); });
+    assets.useEnv([...worldMats]);
+    assets.env(renderer, 0).catch((e) => console.warn("room env:", e && e.message));
+  }
   statics.forEach(m => meshes.push(m));
 
   // ================================================================ PROPS
@@ -664,6 +725,14 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   addProp(placeProp(makeRubberDuck("pink"), -1.25, gF, 1.9, -0.6));
   addProp(placeProp(makeRubberDuck("blue"), -1.6, gF, -0.45, 1.2));
   addProp(placeProp(makeRubberDuck("mint"), 1.9, F + 0.004, 1.45, 2.6));
+  // streamed real-model toys
+  addProp(placeProp(makeChessPawn(), -0.5, 0, -0.25));
+  addProp(placeProp(makeChessKnight(), -0.58, 0, -0.3, 0.8));
+  addProp(placeProp(makeWickerBall(), -2.45, gF, 1.95));
+  addProp(placeProp(makeToyCar(), 1.75, F + 0.004, 2.0, 0.7));
+  addProp(placeProp(makeCookie(), -0.95, F, -1.55));
+  addProp(placeProp(makeToast(), 0.35, F, 1.35, 0.4));
+  addProp(placeProp(makeCroissant(), -0.85, F, 0.25, 1.1));
 
   // ================================================================ queries
   const STEP = 0.04;

@@ -14,7 +14,7 @@ A flock of tiny robot ducks loose in a living room. **Play it here: [r1chi33333.
 - **Garage.** Swap any of a duck's 22 parts, repaint it in four colourways and give it a new voice.
 - **Views.** X-ray shows the servos inside, and Sensors shows what a duck's depth sensor and camera see.
 
-The room has a sofa, a coffee table, a shelf, a rug football pitch, a race track, and a cardboard ramp up onto the big table.
+The room is built from real PBR models: a velvet sofa, silk pouf, house plant, boombox, traffic-cone race track, oak floor and HDRI lighting. It also has a rug football pitch and a cardboard ramp up onto the big table. Furniture and toys stream in after the floor, so you can start playing straight away, and phones get lighter textures.
 
 ## Tech
 - [three.js](https://threejs.org) for rendering
@@ -29,4 +29,6 @@ python3 -m http.server
 Then open `http://localhost:8000/microduck-lab/`.
 
 ## Credits and licence
+Room and prop models are CC0 / CC BY 4.0 assets from the Khronos glTF Sample Assets, Kenney, ambientCG and Poly Haven. See [CREDITS.md](CREDITS.md) for each one.
+
 The 3D model is adapted from the open-source Microduck robot by [Pollen Robotics](https://github.com/pollen-robotics/microduck_rl), licensed under **CC BY-NC-SA 4.0**. I assembled its meshes into an articulated rig, added a jaw joint and re-encoded it as base64 glTF (`microduck_rig.glb.txt`). The modified model keeps the same licence and is for non-commercial use only.

@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { assets } from "./assets.js";
 
 const cache = new Map();
 const once = (key, fn) => { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); };
@@ -226,6 +227,51 @@ export function makeToyBrick(colour = "#D7262B") {
   return finish("toy_brick", "Toy brick", g, { mass: 0.002, shape: { type: "cuboid", halfExtents: [W / 2, (H + sh) / 2, W / 2], offset: [0, (H + sh) / 2, 0] }, grip: { width: W, axis: "x" }, footprint: 0.035 });
 }
 
+// ------------------------------------------------------------------ real-model props (streamed)
+// make() returns at once with a simple placeholder inside object; the PBR model replaces it when loaded.
+// Collider shapes are sized to the real models (see assets/models/_manifest.json).
+function modelProp(id, label, model, placeholder, spec, fit = {}) {
+  const g = new THREE.Group(), vis = new THREE.Group(); vis.name = "visual"; vis.add(placeholder); g.add(vis);
+  assets.swapIn(vis, model, { prio: fit.prio ?? 3, scale: fit.scale, rotationY: fit.rotationY }).then((m) => {
+    if (m) m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  });
+  return finish(id, label, g, spec);
+}
+const ph = (geo, colour, rough = 0.5) => { const m = new THREE.Mesh(geo, once("ph_" + colour, () => phys({ color: colour, roughness: rough }))); return m; };
+export function makeChessPawn() {
+  return modelProp("chess_pawn", "Chess pawn", "pawn",
+    ph(new THREE.LatheGeometry([[0.001, 0], [0.016, 0], [0.016, 0.006], [0.009, 0.012], [0.006, 0.03], [0.009, 0.034], [0.008, 0.042], [0.004, 0.05], [0.001, 0.05]].map(([r, y]) => new THREE.Vector2(r, y)), 24), "#EFE7DA", 0.3),
+    { mass: 0.012, shape: { type: "cylinder", radius: 0.0158, halfHeight: 0.025, offset: [0, 0.025, 0] }, grip: { width: 0.013, axis: "neck" }, footprint: 0.045 });
+}
+export function makeChessKnight() {
+  return modelProp("chess_knight", "Chess knight", "knight",
+    ph(new THREE.CylinderGeometry(0.009, 0.0137, 0.055, 20).translate(0, 0.0275, 0), "#EFE7DA", 0.3),
+    { mass: 0.015, shape: { type: "cylinder", radius: 0.0155, halfHeight: 0.0275, offset: [0, 0.0275, 0] }, grip: { width: 0.016, axis: "head" }, footprint: 0.045 });
+}
+export function makeWickerBall() {
+  const p = modelProp("wicker_ball", "Wicker ball", "wickerball", ph(new THREE.SphereGeometry(0.03, 24, 16).translate(0, 0.03, 0), "#B98B57", 0.7),
+    { mass: 0.02, shape: { type: "ball", radius: 0.03, offset: [0, 0.03, 0] }, grip: null, footprint: 0.08, restitution: 0.45 });
+  p.graspable = false; p.kickable = true; return p;
+}
+export function makeToyCar() {
+  const p = modelProp("toy_car", "Toy car", "toycar", ph(new RoundedBoxGeometry(0.039, 0.024, 0.08, 2, 0.006).translate(0, 0.012, 0), "#C8372D", 0.3),
+    { mass: 0.03, shape: { type: "cuboid", halfExtents: [0.0195, 0.012, 0.04], offset: [0, 0.012, 0] }, grip: null, footprint: 0.09 });
+  p.graspable = false; p.kickable = true; return p;
+}
+export function makeCookie() {
+  return modelProp("cookie", "Cookie", "cookie", ph(new THREE.CylinderGeometry(0.023, 0.023, 0.011, 24).translate(0, 0.0055, 0), "#C48A4E", 0.8),
+    { mass: 0.008, shape: { type: "cylinder", radius: 0.023, halfHeight: 0.0057, offset: [0, 0.0057, 0] }, grip: { width: 0.0113, axis: "edge" }, footprint: 0.055 });
+}
+export function makeToast() {
+  return modelProp("toast", "Toast", "toast", ph(new THREE.BoxGeometry(0.07, 0.0063, 0.058).translate(0, 0.0032, 0), "#D9A35E", 0.8),
+    { mass: 0.01, shape: { type: "cuboid", halfExtents: [0.035, 0.0032, 0.029], offset: [0, 0.0032, 0] }, grip: { width: 0.0063, axis: "edge" }, footprint: 0.08 });
+}
+export function makeCroissant() {
+  // scaled to 72 % so the beak can close around it (0.039 x 0.022 x 0.054 m)
+  return modelProp("croissant", "Croissant", "croissant", ph(new THREE.CapsuleGeometry(0.011, 0.03, 4, 12).rotateX(Math.PI / 2).translate(0, 0.011, 0), "#D39552", 0.7),
+    { mass: 0.01, shape: { type: "cuboid", halfExtents: [0.0195, 0.011, 0.027], offset: [0, 0.011, 0] }, grip: { width: 0.0219, axis: "y" }, footprint: 0.065 }, { scale: 0.72 });
+}
+
 // ------------------------------------------------------------------ catalog (inventory bar)
 const svg = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">${body}</svg>`;
 export const PROP_CATALOG = {
@@ -241,6 +287,13 @@ export const PROP_CATALOG = {
   toy_duck:          { label: "Rubber duck",    icon: svg('<ellipse cx="11" cy="15" rx="8" ry="5" fill="#FFD23F"/><circle cx="15" cy="8" r="4" fill="#FFD23F"/><path d="M18.5 8h3l-3 2z" fill="#F28C28"/>'), make: () => makeRubberDuck("yellow") },
   rubber_duck_pink:  { label: "Pink duck",      icon: svg('<ellipse cx="11" cy="15" rx="8" ry="5" fill="#FF9EC0"/><circle cx="15" cy="8" r="4" fill="#FF9EC0"/><path d="M18.5 8h3l-3 2z" fill="#F2683C"/>'), make: () => makeRubberDuck("pink") },
   rubber_duck_blue:  { label: "Blue duck",      icon: svg('<ellipse cx="11" cy="15" rx="8" ry="5" fill="#7CC4F2"/><circle cx="15" cy="8" r="4" fill="#7CC4F2"/><path d="M18.5 8h3l-3 2z" fill="#F2A33C"/>'), make: () => makeRubberDuck("blue") },
+  chess_pawn:        { label: "Chess pawn",     icon: svg('<path d="M9 20h6l-1-6 2-2-2-1a3 3 0 1 0-4 0l-2 1 2 2z" fill="#EFE7DA" stroke="#9a8f80" stroke-width="0.8"/>'), make: makeChessPawn },
+  chess_knight:      { label: "Chess knight",   icon: svg('<path d="M8 20h9l-1-4c2-3 1-8-4-11l-1 2-3 3 1 2 3-1-3 5z" fill="#EFE7DA" stroke="#9a8f80" stroke-width="0.8"/>'), make: makeChessKnight },
+  wicker_ball:       { label: "Wicker ball",    icon: svg('<circle cx="12" cy="12" r="8" fill="#B98B57"/><path d="M5 9c5 3 9 3 14 0M5 15c5-3 9-3 14 0M9 4.8c3 5 3 9 0 14.4M15 4.8c-3 5-3 9 0 14.4" stroke="#7a5530" stroke-width="1.2" fill="none"/>'), make: makeWickerBall },
+  toy_car:           { label: "Toy car",        icon: svg('<path d="M3 15l2-5h11l4 4v3H3z" fill="#C8372D"/><circle cx="7.5" cy="17.5" r="2" fill="#222"/><circle cx="16.5" cy="17.5" r="2" fill="#222"/>'), make: makeToyCar },
+  cookie:            { label: "Cookie",         icon: svg('<circle cx="12" cy="12" r="8" fill="#C48A4E"/><circle cx="9" cy="10" r="1.3" fill="#5a3a22"/><circle cx="14" cy="14" r="1.3" fill="#5a3a22"/><circle cx="14" cy="9" r="1" fill="#5a3a22"/>'), make: makeCookie },
+  toast:             { label: "Toast",          icon: svg('<path d="M5 10a5 5 0 0 1 4-6h6a5 5 0 0 1 4 6v9H5z" fill="#D9A35E"/><path d="M7 11a3 3 0 0 1 3-4h4a3 3 0 0 1 3 4v6H7z" fill="#F3DCA8"/>'), make: makeToast },
+  croissant:         { label: "Croissant",      icon: svg('<path d="M3 15c3-7 15-7 18 0-3-2-6-1-9 1-3-2-6-3-9-1z" fill="#D39552"/>'), make: makeCroissant },
   rubber_duck_mint:  { label: "Mint duck",      icon: svg('<ellipse cx="11" cy="15" rx="8" ry="5" fill="#8FE0C0"/><circle cx="15" cy="8" r="4" fill="#8FE0C0"/><path d="M18.5 8h3l-3 2z" fill="#F28C28"/>'), make: () => makeRubberDuck("mint") },
 };
 
