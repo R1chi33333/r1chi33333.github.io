@@ -15,7 +15,16 @@ const SURF = {
   table: { nf: 3400, nq: 1.6, nType: "bandpass", body: 780, bodyType: "triangle", dec: 0.035, nGain: 0.5, bGain: 0.3 },
   rug:   { nf: 900,  nq: 0.7, nType: "lowpass",  body: 260, bodyType: "sine",     dec: 0.03,  nGain: 0.35, bGain: 0.16 },
   card:  { nf: 700,  nq: 1.0, nType: "bandpass", body: 150, bodyType: "sine",     dec: 0.09,  nGain: 0.4, bGain: 0.5 },
+  // ready for world.surfaceAt() types (house rooms / garden)
+  tile:  { nf: 4200, nq: 1.8, nType: "bandpass", body: 900, bodyType: "triangle", dec: 0.03,  nGain: 0.5, bGain: 0.3 },
+  stone: { nf: 3000, nq: 1.2, nType: "bandpass", body: 640, bodyType: "triangle", dec: 0.04,  nGain: 0.55, bGain: 0.28 },
+  grass: { nf: 5200, nq: 0.6, nType: "highpass", body: 200, bodyType: "sine",     dec: 0.05,  nGain: 0.22, bGain: 0.08 },
+  puddle:{ nf: 1300, nq: 3.0, nType: "bandpass", body: 380, bodyType: "sine",     dec: 0.07,  nGain: 0.45, bGain: 0.3 },
+  soft:  { nf: 600,  nq: 0.7, nType: "lowpass",  body: 180, bodyType: "sine",     dec: 0.05,  nGain: 0.25, bGain: 0.12 },
 };
+// map any surface type name onto one of the timbres above
+const ALIAS = { floor: "wood", carpet: "rug", bed: "soft", sofa: "soft", cushion: "soft", ramp: "card", cardboard: "card", metal: "table", counter: "tile", kitchen: "tile", water: "puddle", gravel: "stone" };
+const timbre = (t) => SURF[t] ? t : ALIAS[t] && SURF[ALIAS[t]] ? ALIAS[t] : "wood";
 
 export function createSfx(voice, world, clock = () => performance.now() / 1000) {
   const counts = {};
@@ -34,13 +43,23 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
   // ------------------------------------------------------------ surface under a point
   const F = world.floorY, T = world.table, A = world.anchors;
   const pitch = A.pitch, acc = A.tableAccess;
+  const accBox = acc ? (() => { const xs = acc.path.map(q => q[0]), zs = acc.path.map(q => q[2]); return [Math.min(...xs) - 0.1, Math.max(...xs) + 0.4, Math.min(...zs) - 0.2, Math.max(...zs) + 0.2]; })() : null;
+  /**
+   * surfaceInfo(p) -> { type, friction, bounce }. Uses world.surfaceAt(x, z, y) from the world module when it
+   * exists (house build: tile is slippery, bed bouncy, garden grass/stone/puddle); falls back to the heuristic.
+   */
+  const raw = world.raw || world;
+  function surfaceInfo(p) {
+    if (typeof raw.surfaceAt === "function") {
+      const r = raw.surfaceAt(p.x, p.z, p.y + 0.02);
+      if (r) return typeof r === "string" ? { type: r, friction: 1, bounce: 0 } : { type: r.type || "wood", friction: r.friction ?? 1, bounce: r.bounce ?? 0 };
+    }
+    return { type: surfaceAt(p), friction: 1, bounce: 0 };
+  }
   function surfaceAt(p) {
     const y = world.groundHeightAt(p.x, p.z, p.y + 0.02);
     if (y > -0.03 && Math.abs(p.x) <= T.width / 2 + 0.02 && Math.abs(p.z) <= T.depth / 2 + 0.02) return "table";
-    if (acc) {
-      const xs = acc.path.map(q => q[0]), zs = acc.path.map(q => q[2]);
-      if (y > F + 0.01 && p.x > Math.min(...xs) - 0.1 && p.x < Math.max(...xs) + 0.4 && p.z > Math.min(...zs) - 0.2 && p.z < Math.max(...zs) + 0.2) return "card";
-    }
+    if (accBox && y > F + 0.01 && p.x > accBox[0] && p.x < accBox[1] && p.z > accBox[2] && p.z < accBox[3]) return "card";
     if (pitch && y < F + 0.015 && Math.abs(p.x - pitch.center[0]) < 0.95 && Math.abs(p.z - pitch.center[2]) < 1.57) return "rug";
     if (y > F + 0.012) return "table";  // other raised hard surfaces (turntable, landing, shelf)
     return "wood";
@@ -87,6 +106,9 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
       burst(c, dst, t, s.nType, s.nf * j, s.nq, s.nGain * v, s.dec);
       tone(c, dst, t, s.bodyType, s.body * j, s.body * j * 0.82, s.bGain * v, s.dec * 1.4);
       if (d.surface === "card") burst(c, dst, t + 0.004, "lowpass", 320, 0.8, 0.35 * v, 0.12); // hollow thump
+      if (d.surface === "tile") burst(c, dst, t + 0.012, "highpass", 5200, 0.9, 0.22 * v, 0.01);  // crisp double clack
+      if (d.surface === "grass") burst(c, dst, t, "bandpass", 3600, 0.6, 0.18 * v, 0.09, 0.02, 1800); // soft swish
+      if (d.surface === "puddle") { burst(c, dst, t, "bandpass", 900, 2.5, 0.3 * v, 0.07, 0.004, 2200); tone(c, dst, t + 0.01, "sine", 700, 1400, 0.12 * v, 0.06); } // splish
     },
     sit(c, dst, t) { tone(c, dst, t, "sine", 120, 62, 0.5, 0.16); burst(c, dst, t, "lowpass", 600, 0.7, 0.25, 0.08); },
     crouch(c, dst, t) { tone(c, dst, t, "sine", 150, 90, 0.28, 0.1); burst(c, dst, t, "lowpass", 900, 0.7, 0.14, 0.05); },
@@ -102,6 +124,24 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
       o.connect(bp); bp.connect(g); g.connect(dst); o.start(t); o.stop(t + 0.8);
     },
     push(c, dst, t, d) { burst(c, dst, t, "bandpass", 380, 1.4, 0.28 * (d.vol ?? 1), 0.22, 0.04, 1500); },
+    splash(c, dst, t, d) {
+      const v = d.vol ?? 1;
+      burst(c, dst, t, "bandpass", 1200, 1.1, 0.55 * v, 0.22, 0.005, 3800);
+      for (let i = 0; i < 4; i++) tone(c, dst, t + 0.03 + i * 0.045 + Math.random() * 0.02, "sine", 900 + Math.random() * 900, 1800 + Math.random() * 1200, 0.12 * v, 0.05);
+    },
+    boing(c, dst, t, d) {
+      const v = d.vol ?? 1;
+      const o = c.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.09); o.frequency.exponentialRampToValueAtTime(260, t + 0.28);
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 22; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency);
+      const g = env(c, t, 0.32 * v, 0.01, 0.09, 0.3); o.connect(g); g.connect(dst); o.start(t); lfo.start(t); o.stop(t + 0.5); lfo.stop(t + 0.5);
+      burst(c, dst, t, "lowpass", 500, 0.7, 0.2 * v, 0.06);
+    },
+    boost(c, dst, t, d) {
+      const v = d.vol ?? 1;
+      burst(c, dst, t, "bandpass", 300, 1.2, 0.5 * v, 0.45, 0.03, 2600);          // rising whoosh
+      tone(c, dst, t, "sawtooth", 90, 260, 0.08 * v, 0.4, 0.02);                  // little motor rev under it
+      burst(c, dst, t + 0.02, "highpass", 3000, 0.7, 0.18 * v, 0.06);
+    },
     clack(c, dst, t) { burst(c, dst, t, "highpass", 3800, 0.8, 0.45, 0.012); burst(c, dst, t + 0.035, "highpass", 3200, 0.8, 0.35, 0.012); tone(c, dst, t, "square", 900, 700, 0.06, 0.04); },
   };
 
@@ -115,7 +155,7 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
       if (now - prev < (agent.controlled ? 0.04 : 0.09)) return;
       if (!agent.controlled) { if (stepBudget < 1) return; stepBudget -= 1; }
       lastStep.set(agent, now);
-      data.surface = data.surface || surfaceAt(data.pos || agent.pos);
+      data.surface = timbre(data.surface || surfaceInfo(data.pos || agent.pos).type);
       data.vol = (0.75 + Math.random() * 0.25) * (data.vol ?? 1);
       bump("step"); bump("step_" + data.surface); if (agent.controlled) { bump("stepCtl"); bump("stepCtl_" + data.surface); }
     } else bump(kind);
@@ -162,7 +202,7 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
       const decel = Math.max(0, (m.sp - sp) / Math.max(dt, 1e-3));
       let slip = 0;
       if (a.skates && sp > 0.02) { const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw); slip = Math.abs(a.sv.x * fz - a.sv.z * fx); }
-      const skidNow = a.skates && !a.fall ? clamp((slip - 0.05) * 6 + (decel - 0.25) * 0.8, 0, 1) * clamp(sp * 6, 0, 1) : 0;
+      const skidNow = a.drifting && !a.fall ? Math.max(0.6, clamp(slip * 5, 0, 1)) * clamp(sp * 6, 0, 1) : a.skates && !a.fall ? clamp((slip - 0.05) * 6 + (decel - 0.25) * 0.8, 0, 1) * clamp(sp * 6, 0, 1) : 0;
       if (skidNow > 0.25 && m.skid <= 0.25 && !voice.muted) bump("skid");
       m.skid = skidNow; m.prevSp = m.sp; m.sp = sp; m.w = Math.abs(a.w || 0);
       m.legs = !a.skates && !a.fall && (a.duck.stepping || a.duck.sitW > 0.05 && a.duck.sitW < 0.95) ? clamp(sp * 8 + m.w * 0.3, 0.15, 1) : 0;
@@ -187,5 +227,5 @@ export function createSfx(voice, world, clock = () => performance.now() / 1000) 
   }
   const dist2 = (a) => (a.pos.x - listener.x) ** 2 + (a.pos.z - listener.z) ** 2;
 
-  return { event, update, counts, surfaceAt, reset() { for (const k in counts) delete counts[k]; } };
+  return { event, update, counts, surfaceAt, surfaceInfo, reset() { for (const k in counts) delete counts[k]; } };
 }

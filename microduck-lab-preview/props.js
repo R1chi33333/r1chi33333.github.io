@@ -282,6 +282,76 @@ export function makeCroissant() {
     { mass: 0.01, shape: { type: "cuboid", halfExtents: [0.0195, 0.011, 0.027], offset: [0, 0.011, 0] }, grip: { width: 0.0219, axis: "y" }, footprint: 0.065 }, { scale: 0.72 });
 }
 
+
+// ------------------------------------------------------------------ house props (kitchen, bedroom, garden): procedural, all graspable
+export function makeStrawberry() {
+  const R = once("strawberry", () => {
+    const body = new THREE.SphereGeometry(0.011, 18, 14); const p = body.attributes.position;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i); const k = y < 0 ? 1 - (-y / 0.011) * 0.45 : 1; p.setX(i, p.getX(i) * k); p.setZ(i, p.getZ(i) * k); p.setY(i, y * 1.25); }
+    body.computeVertexNormals(); body.translate(0, 0.0138, 0);
+    const leaves = new THREE.ConeGeometry(0.009, 0.004, 6).translate(0, 0.0285, 0);
+    return { body, leaves, m: std({ color: "#E8323F", roughness: 0.5 }), ml: std({ color: "#3E9A45", roughness: 0.8 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.body, R.m), new THREE.Mesh(R.leaves, R.ml));
+  return finish("strawberry", "Strawberry", g, { mass: 0.006, shape: { type: "ball", radius: 0.0115, offset: [0, 0.0125, 0] }, grip: { width: 0.02, axis: "body" }, footprint: 0.04 });
+}
+export function makeGrape() {
+  const R = once("grape", () => ({ g: new THREE.SphereGeometry(0.0085, 16, 12).scale(1, 1.15, 1).translate(0, 0.0098, 0), m: std({ color: "#7B4FC8", roughness: 0.35 }) }));
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.g, R.m));
+  return finish("grape", "Grape", g, { mass: 0.004, shape: { type: "ball", radius: 0.0088, offset: [0, 0.0095, 0] }, grip: { width: 0.017, axis: "body" }, footprint: 0.035 });
+}
+export function makeCracker() {
+  const S = 0.04, T = 0.005;
+  const R = once("cracker", () => {
+    const geo = new RoundedBoxGeometry(S, T, S, 2, 0.002).translate(0, T / 2, 0);
+    const holes = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) holes.push(new THREE.CylinderGeometry(0.0013, 0.0013, 0.0008, 6).translate((i - 1) * 0.011, T + 0.0003, (j - 1) * 0.011).toNonIndexed());
+    return { geo, holes: mergeGeometries(holes), m: std({ color: "#E9B86A", roughness: 0.9 }), mh: std({ color: "#A56E2E", roughness: 0.9 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.geo, R.m), new THREE.Mesh(R.holes, R.mh));
+  return finish("cracker", "Cracker", g, { mass: 0.003, shape: { type: "cuboid", halfExtents: [S / 2, T / 2, S / 2], offset: [0, T / 2, 0] }, grip: { width: T, axis: "edge" }, footprint: 0.06 });
+}
+export function makeToyFigure() {
+  const R = once("toy_figure", () => {
+    const parts = [new THREE.CylinderGeometry(0.008, 0.009, 0.022, 14).translate(0, 0.011, 0).toNonIndexed()];
+    const head = new THREE.SphereGeometry(0.0075, 14, 10).translate(0, 0.03, 0).toNonIndexed();
+    return { body: mergeGeometries(parts), head, m: std({ color: "#3A86FF", roughness: 0.4 }), mh: std({ color: "#FFD23F", roughness: 0.4 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.body, R.m), new THREE.Mesh(R.head, R.mh));
+  return finish("toy_figure", "Toy figure", g, { mass: 0.006, shape: { type: "cylinder", radius: 0.009, halfHeight: 0.019, offset: [0, 0.019, 0] }, grip: { width: 0.018, axis: "body" }, footprint: 0.04 });
+}
+export function makeButton() {
+  const r = 0.011, h = 0.004;
+  const R = once("button", () => {
+    const geo = new THREE.CylinderGeometry(r, r, h, 24).translate(0, h / 2, 0);
+    const holes = mergeGeometries([[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => new THREE.CylinderGeometry(0.0012, 0.0012, 0.0006, 8).translate(a * 0.0028, h + 0.0002, b * 0.0028).toNonIndexed()));
+    return { geo, holes, m: std({ color: "#FF5D73", roughness: 0.35 }), mh: std({ color: "#1B1430", roughness: 0.6 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.geo, R.m), new THREE.Mesh(R.holes, R.mh));
+  return finish("button", "Button", g, { mass: 0.001, shape: { type: "cylinder", radius: r, halfHeight: h / 2, offset: [0, h / 2, 0] }, grip: { width: h, axis: "edge" }, footprint: 0.035 });
+}
+export function makeLeaf() {
+  const R = once("leaf", () => {
+    const s = new THREE.Shape(); s.moveTo(-0.03, 0); s.quadraticCurveTo(-0.005, 0.018, 0.03, 0); s.quadraticCurveTo(-0.005, -0.018, -0.03, 0);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.0015, bevelEnabled: false }).rotateX(-Math.PI / 2);
+    const p = geo.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + 0.004 * Math.pow(p.getX(i) / 0.03, 2));
+    geo.computeVertexNormals();
+    const vein = new THREE.BoxGeometry(0.052, 0.0008, 0.0016).translate(0, 0.0022, 0);
+    return { geo, vein, m: std({ color: "#5BB54A", roughness: 0.8, side: THREE.DoubleSide }), mv: std({ color: "#2F7A34", roughness: 0.8 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.geo, R.m), new THREE.Mesh(R.vein, R.mv));
+  return finish("leaf", "Leaf", g, { mass: 0.0008, shape: { type: "cuboid", halfExtents: [0.03, 0.003, 0.012], offset: [0, 0.003, 0] }, grip: { width: 0.006, axis: "edge" }, footprint: 0.06 });
+}
+export function makePebble() {
+  const R = once("pebble", () => {
+    const geo = new THREE.IcosahedronGeometry(0.011, 2); const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) { const k = 1 + 0.1 * Math.sin(p.getX(i) * 400 + p.getZ(i) * 300); p.setXYZ(i, p.getX(i) * 1.25 * k, p.getY(i) * 0.7 * k, p.getZ(i) * k); }
+    geo.computeVertexNormals(); geo.translate(0, 0.0077, 0);
+    return { geo, m: std({ color: "#A8A2B8", roughness: 0.9 }) };
+  });
+  const g = new THREE.Group(); g.add(new THREE.Mesh(R.geo, R.m));
+  return finish("pebble", "Pebble", g, { mass: 0.006, shape: { type: "ball", radius: 0.0085, offset: [0, 0.0085, 0] }, grip: { width: 0.0155, axis: "body" }, footprint: 0.04 });
+}
+
 // ------------------------------------------------------------------ catalog (inventory bar)
 const svg = (body) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">${body}</svg>`;
 export const PROP_CATALOG = {
@@ -305,6 +375,16 @@ export const PROP_CATALOG = {
   toast:             { label: "Toast",          icon: svg('<path d="M5 10a5 5 0 0 1 4-6h6a5 5 0 0 1 4 6v9H5z" fill="#D9A35E"/><path d="M7 11a3 3 0 0 1 3-4h4a3 3 0 0 1 3 4v6H7z" fill="#F3DCA8"/>'), make: makeToast },
   croissant:         { label: "Croissant",      icon: svg('<path d="M3 15c3-7 15-7 18 0-3-2-6-1-9 1-3-2-6-3-9-1z" fill="#D39552"/>'), make: makeCroissant },
   rubber_duck_mint:  { label: "Mint duck",      icon: svg('<ellipse cx="11" cy="15" rx="8" ry="5" fill="#8FE0C0"/><circle cx="15" cy="8" r="4" fill="#8FE0C0"/><path d="M18.5 8h3l-3 2z" fill="#F28C28"/>'), make: () => makeRubberDuck("mint") },
+  strawberry:        { label: "Strawberry",     icon: svg('<path d="M12 21c-5-3-7-8-6-11 1-2 11-2 12 0 1 3-1 8-6 11z" fill="#E8323F"/><path d="M8 8l4-3 4 3-4 1z" fill="#3E9A45"/>'), make: makeStrawberry },
+  grape:             { label: "Grape",          icon: svg('<ellipse cx="12" cy="13" rx="6" ry="7" fill="#7B4FC8"/><path d="M12 6V3" stroke="#3E9A45" stroke-width="2"/>'), make: makeGrape },
+  cracker:           { label: "Cracker",        icon: svg('<rect x="4" y="4" width="16" height="16" rx="2" fill="#E9B86A"/><g fill="#A56E2E"><circle cx="8" cy="8" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="16" cy="16" r="1"/><circle cx="16" cy="8" r="1"/><circle cx="8" cy="16" r="1"/></g>'), make: makeCracker },
+  toy_figure:        { label: "Toy figure",     icon: svg('<rect x="8" y="10" width="8" height="11" rx="3" fill="#3A86FF"/><circle cx="12" cy="7" r="4" fill="#FFD23F"/>'), make: makeToyFigure },
+  button:            { label: "Button",         icon: svg('<circle cx="12" cy="12" r="8" fill="#FF5D73"/><g fill="#1B1430"><circle cx="10" cy="10" r="1.2"/><circle cx="14" cy="10" r="1.2"/><circle cx="10" cy="14" r="1.2"/><circle cx="14" cy="14" r="1.2"/></g>'), make: makeButton },
+  leaf:              { label: "Leaf",           icon: svg('<path d="M3 13c4-8 14-8 18-1-4 7-14 8-18 1z" fill="#5BB54A"/><path d="M4 13h16" stroke="#2F7A34" stroke-width="1.4"/>'), make: makeLeaf },
+  pebble:            { label: "Pebble",         icon: svg('<ellipse cx="12" cy="14" rx="8" ry="5.5" fill="#A8A2B8"/><path d="M8 12c2-1 4-1 6 0" stroke="#fff" stroke-width="1.2" fill="none"/>'), make: makePebble },
+  crayon_red:        { label: "Red crayon",     icon: svg('<rect x="3" y="10" width="15" height="5" rx="1" fill="#E8323F"/><path d="M18 10l4 2.5-4 2.5z" fill="#E8323F"/><rect x="6" y="10" width="7" height="5" fill="#F3EBD7"/>'), make: () => { const p = makeCrayon("#E8323F"); p.kind = "crayon_red"; return p; } },
+  crayon_green:      { label: "Green crayon",   icon: svg('<rect x="3" y="10" width="15" height="5" rx="1" fill="#2FA84F"/><path d="M18 10l4 2.5-4 2.5z" fill="#2FA84F"/><rect x="6" y="10" width="7" height="5" fill="#F3EBD7"/>'), make: () => { const p = makeCrayon("#2FA84F"); p.kind = "crayon_green"; return p; } },
+
 };
 
 // ------------------------------------------------------------------ roller skates

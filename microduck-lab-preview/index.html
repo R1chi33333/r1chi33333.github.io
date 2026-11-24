@@ -585,6 +585,72 @@ body.customise .credit, body.customise #mindPanel, body.customise #thPanel, body
   body.customise .brand { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .cz-skin, .cz-go { transition: none; } }
+
+/* ---- skate tricks, moves rows, bag ---- */
+.moves button small { font: 600 10px/1 var(--font); letter-spacing: 0; opacity: .7; margin-left: 2px; }
+.moves button[aria-disabled="true"] { opacity: .38; filter: grayscale(1); cursor: default; }
+.moves button[aria-disabled="true"]:hover { background: transparent; border-color: transparent; }
+body.skating .moves .walk-only { opacity: .38; filter: grayscale(1); }
+.boost-cd { position: relative; }
+.boost-cd::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .15s;
+  background: conic-gradient(var(--red) calc(var(--cd, 0) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); }
+.boost-cd.cooling::after { opacity: 1; }
+.moves .boost-cd::after { inset: auto; right: 6px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent 45%, #000 50%); mask: radial-gradient(farthest-side, transparent 45%, #000 50%);
+  background: conic-gradient(var(--red) calc(var(--cd, 0) * 360deg), rgba(27,20,48,.15) 0); }
+.moves .boost-cd { padding-right: 30px; }
+.moves .boost-cd.firing { background: var(--yel); border-color: var(--ink); }
+/* inventory bar: collapsed by default, slides up from a BAG sticker */
+.invbar { transition: transform .28s cubic-bezier(.2,1.4,.4,1), opacity .2s, visibility 0s; }
+.invbar.collapsed { transform: translate(-50%, calc(100% + 40px)); opacity: 0; visibility: hidden; pointer-events: none; transition: transform .22s ease-in, opacity .2s, visibility 0s .22s; }
+.bag-btn { position: absolute; right: calc(var(--gut) + 6px); bottom: var(--bot); z-index: 5; min-width: 92px; height: 52px; padding: 0 12px 0 10px; display: flex; align-items: center; gap: 6px;
+  font: 400 22px/1 var(--display); letter-spacing: .05em; color: var(--ink); background: var(--yel); border: var(--bd); border-radius: 14px; box-shadow: var(--sh); transform: rotate(-3deg); cursor: pointer; }
+.bag-btn svg { width: 24px; height: 24px; }
+.bag-btn kbd { font: 700 10px/1 var(--font); color: var(--paper2); background: var(--ink); border-radius: 4px; padding: 3px 5px; }
+.bag-btn[aria-expanded="true"] { background: var(--paper2); transform: rotate(2deg); }
+.bag-btn:active { transform: translate(3px, 3px) rotate(-3deg); box-shadow: 0 0 0 var(--ink); }
+body.garage .bag-btn, body.customise .bag-btn { display: none; }
+.skate-btn { display: none; }
+@media (max-width: 720px), (pointer: coarse) {
+  .invbar.collapsed { transform: translateY(calc(100% + 40px)); }
+  .bag-btn { right: auto; left: 12px; bottom: calc(var(--bot) + 6px); min-width: 64px; height: 48px; font-size: 18px; }
+  .bag-btn kbd { display: none; }
+  body.bag-open .touch .joy { visibility: hidden; }
+  body.skating .skate-btn { display: grid; }
+  #tBoost { position: absolute; right: 0; bottom: 196px; width: 66px; height: 66px; border-radius: 50%; background: var(--red); color: var(--paper2); }
+  #tDrift { position: absolute; right: 76px; bottom: 166px; width: 60px; height: 60px; border-radius: 50%; background: var(--lil); }
+  #tDrift.on { background: var(--yel); color: var(--ink); }
+}
+@media (max-width: 1100px) and (min-width: 721px) {
+  .invbar { right: calc(var(--gut) + 116px); }
+  .invbar.collapsed { transform: translateY(calc(100% + 40px)); }
+}
+@media (max-width: 720px), (pointer: coarse) {
+  body.bag-open .bag-btn { bottom: calc(var(--bot) + 76px); }
+}
+
+/* comic speech-bubble toast (skate tutorial) */
+.toast.bubble { background: var(--yel); border: var(--bd); box-shadow: var(--sh); transform-origin: 30% 100%; }
+.toast.bubble #toastT { font: 400 24px/1.05 var(--display); letter-spacing: .04em; color: var(--ink); }
+.toast.bubble::after { content: ""; position: absolute; left: 34px; bottom: -16px; width: 22px; height: 18px; background: var(--yel); border-right: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: skewX(-35deg); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+/* help card sits beside the (taller) moves panel instead of under it */
+@media (min-width: 721px) and (pointer: fine) { .help { left: calc(var(--gut) + 200px); bottom: calc(var(--bot) + 56px); } }
+
+/* race picker */
+.race-pick { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-1deg); z-index: 8; width: min(360px, calc(100vw - 32px)); padding: 14px 14px 12px;
+  background: var(--dots), var(--paper); border: var(--bd); border-radius: 14px; box-shadow: 8px 8px 0 var(--ink); display: grid; gap: 8px; }
+.race-pick[hidden] { display: none; }
+.race-pick h3 { margin: 0 0 2px; font: 400 30px/1 var(--display); letter-spacing: .04em; color: var(--ink); -webkit-text-stroke: 0; }
+.race-pick button[data-track] { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; min-height: 56px; padding: 8px 12px;
+  background: var(--paper2); border: var(--bd); border-radius: 10px; box-shadow: var(--sh-sm); cursor: pointer; color: var(--ink); }
+.race-pick button[data-track]:hover, .race-pick button[data-track]:focus-visible { background: var(--yel); outline: none; transform: rotate(-1deg); }
+.race-pick button[hidden] { display: none; }
+.race-pick kbd { grid-row: 1 / span 2; font: 700 12px/1 var(--font); color: var(--paper2); background: var(--ink); border-radius: 4px; padding: 5px 7px; box-shadow: 2px 2px 0 var(--red); }
+.race-pick b { font: 400 22px/1 var(--display); letter-spacing: .04em; }
+.race-pick small { font: 500 12px/1.2 var(--font); opacity: .75; }
+.race-pick .x { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; border: 0; background: none; font: 700 26px/1 var(--font); color: var(--ink); cursor: pointer; }
+@media (pointer: coarse) { .race-pick kbd { display: none; } .race-pick button[data-track] { grid-template-columns: 1fr; } }
 </style>
 <script type="importmap">
 { "imports": {
@@ -629,12 +695,17 @@ body.customise .credit, body.customise #mindPanel, body.customise #thPanel, body
   <div class="help glass" id="help">
     <div><kbd>W</kbd><kbd>S</kbd> walk &nbsp;<kbd>A</kbd><kbd>D</kbd> turn &nbsp;<kbd>Space</kbd> beak &nbsp;<kbd>E</kbd> grab / drop</div>
     <div><kbd>X</kbd> sit &nbsp;<kbd>C</kbd> crouch &nbsp;<kbd>1</kbd>–<kbd>4</kbd> nod · shake · dance · look around</div>
-    <div><kbd>K</kbd> skates &nbsp;<kbd>L</kbd> laser &nbsp;<kbd>F</kbd> football &nbsp;<kbd>R</kbd> race &nbsp;<kbd>V</kbd> view</div>
+    <div><kbd>K</kbd> skates: <kbd>Shift</kbd> boost · hold <kbd>Space</kbd> drift</div>
+    <div><kbd>L</kbd> laser &nbsp;<kbd>F</kbd> football &nbsp;<kbd>R</kbd> race &nbsp;<kbd>V</kbd> view</div>
     <div><kbd>Tab</kbd> or <b>click a duck</b> to drive it · <b>click your duck</b> to poke it</div>
-    <div><b>Drag toys</b> from the bar into the room · <b>right-click</b> deletes</div>
-    <div><b>Drag</b> to orbit · <b>scroll</b> to zoom</div>
+    <div><b>Drag toys</b> from the <kbd>B</kbd> bag · <b>right-click</b> deletes · <b>drag</b> orbits · <b>scroll</b> zooms</div>
   </div>
   <nav class="moves glass" id="moves" aria-label="Moves">
+    <button data-move="grab"><kbd>E</kbd>Grab</button>
+    <button data-move="beak" class="walk-only"><kbd>Space</kbd>Beak</button>
+    <button data-move="boost" class="skate-only boost-cd" aria-disabled="true" title="Put skates on first"><kbd>Shift</kbd>Boost</button>
+    <button data-move="drift" class="skate-only" aria-disabled="true" title="Put skates on first"><kbd>Space</kbd>Drift <small>hold</small></button>
+    <div class="sep"></div>
     <button data-move="sit"><kbd>X</kbd>Sit</button>
     <button data-move="crouch"><kbd>C</kbd>Crouch</button>
     <button data-move="nod"><kbd>1</kbd>Nod</button>
@@ -647,10 +718,19 @@ body.customise .credit, body.customise #mindPanel, body.customise #thPanel, body
     <button data-move="football"><kbd>F</kbd>Football</button>
     <button data-move="race"><kbd>R</kbd>Race</button>
     <button data-move="next"><kbd>Tab</kbd>Next duck</button>
+    <button data-move="bag"><kbd>B</kbd>Bag</button>
   </nav>
   <div class="game-hud glass hidden" id="gameHud" aria-live="polite"></div>
   <div class="countdown" id="countdown" aria-live="assertive"></div>
-  <div class="invbar glass" id="bar" role="toolbar" aria-label="Toys and ducks"></div>
+  <div class="race-pick" id="racePick" role="dialog" aria-label="Pick a race" hidden>
+    <h3>Pick a race!</h3>
+    <button data-track="living"><kbd>1</kbd><b>Living room</b><small>Round the cones</small></button>
+    <button data-track="house"><kbd>2</kbd><b>House race</b><small>Every room, 1 lap</small></button>
+    <button data-track="drag"><kbd>3</kbd><b>Drag strip</b><small>Hallway sprint · boost it!</small></button>
+    <button class="x" id="racePickX" aria-label="Close">×</button>
+  </div>
+  <div class="invbar glass collapsed" id="bar" role="toolbar" aria-label="Toys and ducks"></div>
+  <button class="bag-btn" id="bagBtn" aria-label="Bag: toys and ducks" aria-expanded="false" aria-controls="bar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h14l-1.2 11H6.2z" fill="currentColor"/><path d="M9 9V7a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg><span>Bag</span><kbd>B</kbd></button>
   <div class="credit" id="credit">3D model: <a href="https://github.com/pollen-robotics/microduck_rl" target="_blank" rel="noopener">Pollen Robotics Microduck</a> (CC BY-NC-SA 4.0), modified · <a href="https://github.com/R1chi33333/r1chi33333.github.io/blob/main/microduck-lab/CREDITS.md" target="_blank" rel="noopener">Room &amp; prop credits</a></div>
 
   <div class="toast glass" id="toast" role="status" aria-live="polite"><span class="ic" id="toastIc">!</span><div><span id="toastT"></span><small id="toastS"></small></div></div>
@@ -728,6 +808,8 @@ body.customise .credit, body.customise #mindPanel, body.customise #thPanel, body
   <div class="touch" id="touch">
     <div class="joy glass" id="joy" aria-label="Walk joystick"><i id="joyKnob"></i></div>
     <div class="tbtns">
+      <button class="tbtn glass skate-btn boost-cd" id="tBoost" aria-label="Boost">Boost</button>
+      <button class="tbtn glass skate-btn" id="tDrift" aria-label="Drift (hold)">Drift</button>
       <button class="tbtn glass" id="tMore" aria-label="More moves" aria-pressed="false">Moves</button>
       <button class="tbtn glass" id="tGrab" aria-label="Grab or drop">Grab</button>
       <button class="tbtn glass big" id="tBeak" aria-label="Beak">Beak</button>

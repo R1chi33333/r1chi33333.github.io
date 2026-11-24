@@ -32,6 +32,8 @@ export const TOON = {
   uTnShadowHue: { value: 0.72 },                // hue the shadows lean towards (violet)
 };
 export const INK = new THREE.Color("#1B1430");
+// shared view focus (camera target), written by the stage each frame; world.js uses it for the wall cutaway
+export const FOCUS = { pos: new THREE.Vector3(), set: false };
 export const PAPER = new THREE.Color("#FFF7E8");
 
 const TOON_HEAD = /* glsl */`

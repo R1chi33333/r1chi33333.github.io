@@ -109,6 +109,7 @@ export class DuckBody {
     this.sitTarget = false; this.sitW = 0; this.crouchTarget = false; this.crouchW = 0;
     this.onSound = null;   // (kind, data) => void — foot plants, sit/crouch settle, fall hits, get-up (sfx.js)
     this.skating = false; this.skateLift = 0.022; this.skateW = 0; this.stroke = 0; this.strokeSide = 1; this.wobble = 0;
+    this.skateLean = 0; this.leanW = 0;   // body roll on skates (set by the agent: into turns, counter-lean when drifting)
     this.emote = null; this.hop = 0; this.gazeYawOff = 0; this.gazePitchOff = 0;
     this.happyWiggle = 0;
     this.limp = this._makeLimp();
@@ -354,7 +355,8 @@ export class DuckBody {
     const bob = (Math.cos(ph * 2) * 0.5 + 0.5) * 0.0028 * gw;
     const breathe = Math.sin(this.time * 1.7) * 0.0006;
     const sk = this.skateW, glide = Math.sin(this.stroke * Math.PI * 2);
-    const skateRoll = sk * (clamp(this.yawRate * 0.12, -0.25, 0.25) + glide * 0.05 * this.strokeSide + this.wobble * Math.sin(this.time * 15) * 0.2);
+    this.leanW = damp(this.leanW, this.skateLean, 9, dt);
+    const skateRoll = sk * (this.leanW + glide * 0.05 * this.strokeSide + this.wobble * Math.sin(this.time * 15) * 0.2);
     this.trunkOff.set(sway + em.x + sk * glide * 0.004, -GAIT.crouch * gw - bob + breathe - this.crouchExtra - this.sitW * this.sitDrop - this.crouchW * 0.028 + sk * this.skateLift + em.y, 0);
     this.trunkEuler.set(this.lean + this.pitchExtra + Math.sin(ph * 2) * 0.012 * gw - this.sitW * 0.16 + this.crouchW * 0.1 + sk * 0.12 + em.pitch,
       Math.sin(ph) * 0.05 * gw + em.yaw, -Math.sin(ph) * 0.045 * gw + skateRoll + em.roll, "YXZ");

@@ -20,7 +20,7 @@ import { toCreasedNormals, mergeVertices } from "three/addons/utils/BufferGeomet
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
-import { toonify, toonifyTree, TOON, twos, setupComicPost, INK } from "./toon.js";
+import { toonify, toonifyTree, TOON, twos, setupComicPost, INK, FOCUS } from "./toon.js";
 export { toonify, toonifyTree, TOON, twos, INK };
 
 // ---------------------------------------------------------------- palette
@@ -339,7 +339,7 @@ export function buildStage(scene, renderer, opts = {}) {
   };
   group.add(fitProbe);
   function follow(p, groundY = floorY) {
-    lastFollow.copy(p); fitted = 1;
+    lastFollow.copy(p); fitted = 1; FOCUS.pos.copy(p); FOCUS.set = true;
     csGroup.position.set(p.x, groundY + size * 0.001, p.z);
     // snap to shadow texels to avoid shimmering while moving
     const e = key.shadow.camera.right, texel = (2 * e) / key.shadow.mapSize.x;

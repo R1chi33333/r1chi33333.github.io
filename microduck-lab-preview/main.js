@@ -13,7 +13,7 @@ import { Mind } from "./mind.js";
 import { Workshop } from "./garage.js";
 import { Voice, makeSerial, voiceParams } from "./voice.js";
 import { createSfx } from "./sfx.js";
-import { Agent } from "./agent.js";
+import { Agent, SKATE } from "./agent.js";
 import { Football, Race } from "./games.js";
 import { createInventory } from "./inventory.js";
 import { PROP_CATALOG, makeSkates, makeLaserDot, placeProp } from "./props.js";
@@ -126,11 +126,14 @@ async function main() {
     now: () => S.simTime, controlled: () => ctlAgent, leader: () => ctlAgent,
     events: {}, hud: null,
     sound: (kind, agent, data) => sfx.event(kind, agent, data),
+    // surface under a point: { type, friction, bounce }. world.surfaceAt() when the world provides it, else a heuristic
+    // (world.surfaceAt reuses one object: read the fields right away, copy anything kept)
+    surfaceAt: (x, y, z) => world.surfaceAt ? world.surfaceAt(x, z, y + 0.02) : sfx.surfaceInfo(V(x, y, z)),
   };
   const S = {
     mode: "play", layer: "surface", W: { surface: 1, xray: 0, mind: 0 },
     joy: { x: 0, y: 0, active: false }, intentMode: false, simTime: 0, lastToastAt: -10,
-    lastInputAt: 0, camDragAt: -10, garageBusy: false, playPose: null, testInput: null, spaceAt: -1, name: null,
+    lastInputAt: 0, camDragAt: -10, fxLog: [], touchDrift: false, bagOpen: false, garageBusy: false, playPose: null, testInput: null, spaceAt: -1, name: null,
   };
 
   function makeDuck(skin) {
@@ -188,7 +191,8 @@ async function main() {
 
   function setControlled(a) {
     if (!a || a === ctlAgent) return;
-    if (ctlAgent) { ctlAgent.controlled = false; ctlAgent.cancelTask(); ctlAgent.brain.t = 999; }
+    if (S.drag) stopDragStrip();
+    if (ctlAgent) { ctlAgent.controlled = false; ctlAgent.speedMult = 1; ctlAgent.cancelTask(); ctlAgent.brain.t = 999; }
     ctlAgent = a; a.controlled = true; a.cancelTask();
     voice.setSerial(a.serial);
     cam.tween = 1;     // camera eases over to the new duck
@@ -201,6 +205,29 @@ async function main() {
   const post = setupPost(renderer, scene, camera, { quality, samples: quality === "high" ? 4 : 2, aa: "msaa" });
   // ---- comic FX hook (toon.js): stickers / speed lines / impact frames driven from game state
   if (post.fx) { post.fx.reducedMotion = reduced; post.fx.watch(agents, G, () => ctlAgent); window.__fx = post.fx; }
+  // skate tricks -> comic FX (the skate smoke / bolts / skids in toon.js react to the acceleration and slip by themselves)
+  G.events.boost = (a, kind) => {
+    S.fxLog.push(kind);
+    if (!post.fx) return;
+    const isC = a === ctlAgent, p = a.duck.root.position;
+    if (kind === "boost") post.fx.emit("zoom", p, { impact: isC ? 1 : 0, speed: 1, offsetY: 0.15, key: a.index, cooldown: 0.5 });
+    else post.fx.emit("whee", p, { impact: isC ? 0.5 : 0, speed: 0.8, offsetY: 0.15, key: a.index, cooldown: 0.5 });
+  };
+  G.events.drift = (a, on) => { if (on) S.fxLog.push("drift"); };
+  // puddle: SPLASH! sticker (+ droplets from the skate FX pool when it exists)
+  G.events.splash = (a, sp) => {
+    S.fxLog.push("splash");
+    if (!post.fx || reduced) return;
+    const p = a.duck.root.position, isC = a === ctlAgent;
+    if (isC || a.pos.distanceTo(camera.position) < 3) post.fx.emit("splash", p, { text: "SPLASH!", scale: isC ? 0.9 : 0.6, offsetY: 0.1, key: a.index, cooldown: 0.9, life: 0.9 });
+    const P = post.fx.skate; if (P) {
+      const y = p.y + 0.005, n = isC ? 7 : 3;
+      for (let i = 0; i < n; i++) { const ang = Math.random() * Math.PI * 2; P.glint && P.glint(p.x + Math.cos(ang) * 0.04, y + 0.02 + Math.random() * 0.03, p.z + Math.sin(ang) * 0.04, 1.1); }
+      for (let i = 0; i < (isC ? 3 : 1); i++) P.smoke && P.smoke(p.x, y, p.z, Math.cos(i * 2.1), Math.sin(i * 2.1), 0.7);
+    }
+  };
+  G.events.boing = (a) => { S.fxLog.push("boing"); if (post.fx && !reduced && a === ctlAgent) post.fx.emit("whee", a.duck.root.position, { text: "BOING!", scale: 0.7, offsetY: 0.16, key: "boing" + a.index, cooldown: 1.2, life: 0.8 }); };
+  G.events.crash = (a) => { S.fxLog.push("crash"); if (post.fx && a === ctlAgent) post.fx.impact(1, a.duck.root.position); };
   const eyeCam = new THREE.PerspectiveCamera(62, 1, 0.006, 6);
   function resize() {
     const w = innerWidth, h = innerHeight;
@@ -214,7 +241,7 @@ async function main() {
   // ---------------------------------------------------------------- UI helpers
   const toastEl = $("toast"); let toastTimer = 0;
   function toast(title, sub = "", kind = "warn", ms = 2600) {
-    $("toastT").textContent = title; $("toastS").textContent = sub;
+    $("toastT").textContent = title; $("toastS").textContent = sub; toastEl.classList.remove("bubble");
     toastEl.classList.toggle("violet", kind !== "warn"); $("toastIc").textContent = kind === "warn" ? "!" : "•";
     toastEl.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
   }
@@ -267,7 +294,7 @@ async function main() {
       $("hudX").onclick = () => toggleRace(false);
     },
   };
-  G.events = {
+  Object.assign(G.events, {   // keep the skate-trick handlers added above
     goal(team, score) { toast("GOAL!", (team === ctlAgent.team ? "Your team scores. " : "The other team scores. ") + score[0] + " : " + score[1], "info", 2200); voice.play("happy", { force: true, params: ctlAgent.voice }); pulse(); },
     countdown(n) { voice.play(n === 0 ? "happy" : "curious", { force: true, params: ctlAgent.voice }); },
     finish(a, place, t) { if (a === ctlAgent) toast(place === 1 ? "You win!" : `Finished ${["", "1st", "2nd", "3rd"][place] || place + "th"}`, "Time " + fmt(t), "info", 3400); },
@@ -279,7 +306,7 @@ async function main() {
       if (a === ctlAgent) { $("fadeText").textContent = "Picked up and put back"; $("fadeBlack").classList.add("on"); setTimeout(() => $("fadeBlack").classList.remove("on"), TEST ? 0 : 700); }
       a.teleport(world.spawnSpot(agents.indexOf(a), agents.length), start.yaw);
     },
-  };
+  });
 
   // ---------------------------------------------------------------- modes + layers
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
@@ -311,9 +338,14 @@ async function main() {
       case "crouch": a.setCrouch(!a.duck.crouchTarget); break;
       case "nod": case "shake": case "dance": case "look": a.emote(m); break;
       case "skates": toggleSkates(a); break;
+      case "grab": grabKey(); break;
+      case "beak": if (a.skates) return; beakDown(); setTimeout(beakUp, 0); break;
+      case "boost": if (!a.skates) { toast("Skates first", PHONE ? "Tap Moves, then Skates." : "Press K to put skates on.", "info"); return; } a.boost(); break;
+      case "drift": if (!a.skates) { toast("Skates first", PHONE ? "Tap Moves, then Skates." : "Press K to put skates on.", "info"); return; } toast("Drift", PHONE ? "Hold DRIFT and steer." : "Hold Space and steer with A/D.", "info", 1800); break;
+      case "bag": setBag(!S.bagOpen); break;
       case "laser": setLaser(!laser.on); break;
       case "football": toggleFootball(); break;
-      case "race": toggleRace(); break;
+      case "race": if (G.race && G.race.active) toggleRace(false); else if (S.drag) stopDragStrip(); else openRacePick(); break;
       case "next": { const i = agents.indexOf(a); setControlled(agents[(i + 1) % agents.length]); break; }
     }
     refreshMoves();
@@ -322,8 +354,39 @@ async function main() {
     const a = ctlAgent;
     const set = (k, on) => document.querySelectorAll(`[data-move="${k}"]`).forEach(b => b.setAttribute("aria-pressed", String(!!on)));
     set("sit", a.duck.sitTarget); set("crouch", a.duck.crouchTarget); set("skates", !!a.skates); set("laser", laser.on);
-    set("football", G.football && G.football.active); set("race", G.race && G.race.active);
+    set("football", G.football && G.football.active); set("race", (G.race && G.race.active) || !!S.drag); set("bag", S.bagOpen);
+    const sk = !!a.skates; document.body.classList.toggle("skating", sk);
+    document.querySelectorAll(".moves .skate-only").forEach(b => { b.setAttribute("aria-disabled", String(!sk)); b.title = sk ? "" : "Put skates on first"; });
   }
+  // boost cooldown ring (moves row + phone button), updated every frame
+  function updateBoostUI() {
+    const a = ctlAgent, B = SKATE.boost, cd = a && a.skates ? a.boostCd / (B.time + B.cooldown) : 0;
+    document.querySelectorAll(".boost-cd").forEach(el => { el.style.setProperty("--cd", cd.toFixed(3)); el.classList.toggle("cooling", cd > 0); el.classList.toggle("firing", !!(a && a.boostT > 0)); });
+    $("tDrift").classList.toggle("on", !!(a && a.drifting));
+    if (post.fx && a && a.boostT > 0 && !reduced) post.fx.speed(a.duck.root.position, 0.85);
+  }
+  // first time on skates: how to boost and drift (once per browser)
+  function skateTutorial() {
+    let seen = false; try { seen = localStorage.getItem("microduck.tut.skates") === "1"; localStorage.setItem("microduck.tut.skates", "1"); } catch (e) { /* storage blocked */ }
+    if (seen && !Q.has("tut")) return false;
+    toast(PHONE ? "BOOST and DRIFT buttons!" : "SHIFT to boost · hold SPACE to drift!", PHONE ? "Tap BOOST for a burst. Hold DRIFT and steer to slide." : "Steer while drifting, let go for a slingshot.", "info", 5200);
+    toastEl.classList.add("bubble");
+    return true;
+  }
+  // ---------------------------------------------------------------- bag (inventory bar, collapsed by default)
+  function setBag(open) {
+    open = !!open; if (open === S.bagOpen) return;
+    S.bagOpen = open; $("bar").classList.toggle("collapsed", !open); document.body.classList.toggle("bag-open", open);
+    $("bagBtn").setAttribute("aria-expanded", String(open));
+    if (!open) { inv.select(null); inv.setTrash(false); }
+    refreshMoves();
+  }
+  $("bagBtn").addEventListener("click", (e) => { e.stopPropagation(); voice.ensure(); setBag(!S.bagOpen); });
+  addEventListener("pointerdown", (e) => {
+    if (!S.bagOpen || inv.selected || inv.trash) return;
+    const t = e.target; if (t.closest && (t.closest("#bar") || t.closest("#bagBtn") || t.closest('[data-move="bag"]'))) return;
+    setBag(false);
+  }, true);
   document.querySelectorAll("[data-move]").forEach(b => b.addEventListener("click", () => { doMove(b.dataset.move); if (PHONE && !["sit", "crouch", "skates", "laser"].includes(b.dataset.move)) $("moves").classList.remove("open"); }));
   $("tMore").addEventListener("click", () => { $("moves").classList.toggle("open"); $("tMore").setAttribute("aria-pressed", String($("moves").classList.contains("open"))); });
 
@@ -333,7 +396,7 @@ async function main() {
   const skatesWorn = () => agents.filter(a => a.skates).length;
   function toggleSkates(a) {
     if (a.skates) { skatePool.push(a.unequipSkates()); toast("Skates off", "", "info", 1200); }
-    else { a.equipSkates(newSkates()); G.sound("clack", a); if (a === ctlAgent) toast("Skates on!", "Push with W, steer with A/D, brake with S. Careful on the ramp.", "info", 3000); }
+    else { a.equipSkates(newSkates()); G.sound("clack", a); if (a === ctlAgent && !skateTutorial()) toast("Skates on!", PHONE ? "Joystick to push and steer. BOOST and DRIFT appear on the right." : "W to push, A/D to steer, S to brake, Shift to boost, hold Space to drift.", "info", 3000); }
     inv.refresh(); refreshMoves();
   }
 
@@ -364,6 +427,78 @@ async function main() {
     if (want) { if (G.race && G.race.active) G.race.stop(); G.football.start(ensureBall()); toast("Football!", "Walk into the sock ball to kick it. Orange attacks the far goal.", "info", 3200); }
     else G.football.stop();
     refreshMoves();
+  }
+  // ---------------------------------------------------------------- race picker: living-room loop, whole-house race, hallway drag strip
+  function houseTrack() {
+    const H = world.anchors.raceHouse; if (!H) return null;
+    return { checkpoints: [H.start.position, ...H.checkpoints.map(c => c.position)], radius: [H.start.width / 2, ...H.checkpoints.map(c => c.radius || 0.4)],
+      startDir: H.start.direction, laps: 1, speedBoost: 2.6, builtIn: true, noOffset: true };
+  }
+  const racePick = $("racePick");
+  function openRacePick() {
+    racePick.querySelector('[data-track="house"]').hidden = !world.anchors.raceHouse;
+    racePick.querySelector('[data-track="drag"]').hidden = !world.anchors.dragStrip;
+    racePick.hidden = false; racePick.querySelector("button:not([hidden])").focus({ preventScroll: true });
+  }
+  const closeRacePick = () => { racePick.hidden = true; };
+  function startTrack(kind) {
+    closeRacePick();
+    if (kind === "drag") { startDragStrip(); return; }
+    if (S.drag) stopDragStrip(true);
+    if (!G.race) G.race = new Race(G);
+    G.race.setTrack(kind === "house" ? houseTrack() : null);
+    toggleRace(true);
+    if (kind === "house") toast("House race!", "Through the hallway, kitchen, living room and bedroom. One lap.", "info", 3200);
+  }
+  racePick.querySelectorAll("[data-track]").forEach(b => b.addEventListener("click", () => startTrack(b.dataset.track)));
+  $("racePickX").addEventListener("click", closeRacePick);
+
+  // drag strip: a timed straight sprint down the hallway (skates on, boost recommended)
+  const DRAG_KEY = "microduck.drag.best";
+  function startDragStrip() {
+    const D = world.anchors.dragStrip; if (!D) return;
+    if (G.race && G.race.active) toggleRace(false);
+    if (G.football && G.football.active) toggleFootball(false);
+    const a = ctlAgent, dir = V(D.direction[0], 0, D.direction[2]).normalize(), start = V(...D.start), finish = V(...D.finish);
+    if (!a.skates) toggleSkates(a);
+    a.cancelTask(); a.releaseHeld();
+    a.teleport(start.clone().addScaledVector(dir, -0.12).setY(world.groundHeightAt(start.x, start.z, start.y + 0.05)), Math.atan2(dir.x, dir.z));
+    // clear the strip: other ducks wait in the living room
+    agents.forEach((b, i) => { if (b !== a && world.roomAt(b.pos.x, b.pos.z) === "hallway") b.teleport(world.spawnSpot(i + 1, agents.length + 2), b.yaw); });
+    let best = null; try { best = Number(localStorage.getItem(DRAG_KEY)) || null; } catch (e) { /* storage blocked */ }
+    S.drag = { phase: "count", cd: 3.6, t: 0, dir, start, len: finish.clone().sub(start).dot(dir), best, done: 0 };
+    cam.tYaw = a.yaw + Math.PI - 0.35; cam.tPitch = 0.3; cam.tDist = 1.0; cam.tween = 1;
+    refreshMoves(); dragHud();
+  }
+  function stopDragStrip(silent) { ctlAgent.speedMult = 1; S.drag = null; G.hud.hide(); refreshMoves(); if (!silent) countEl.classList.remove("show"); }
+  function updateDragStrip(dt) {
+    const D = S.drag, a = ctlAgent;
+    if (D.phase === "count") {
+      D.cd -= dt; const n = Math.ceil(D.cd - 0.6);
+      if (D.lastN !== n) { D.lastN = n; voice.play(n <= 0 ? "happy" : "curious", { force: true, params: a.voice }); }
+      if (D.cd <= 0.6) { D.phase = "run"; D.t = 0; a.speedMult = 1.6; }   // the strip is fast: higher top speed for the run
+    } else if (D.phase === "run") {
+      D.t += dt;
+      const prog = a.pos.clone().sub(D.start).dot(D.dir);
+      if (prog >= D.len) {
+        D.phase = "done"; D.done = 0; a.speedMult = 1; const t = D.t;
+        const rec = !D.best || t < D.best; if (rec) { D.best = t; try { localStorage.setItem(DRAG_KEY, String(t)); } catch (e) { /* storage blocked */ } }
+        toast(rec ? "New record!" : "Finish!", "Drag strip: " + fmt(t) + " s" + (rec ? "" : " · best " + fmt(D.best)), "info", 3600);
+        if (post.fx) post.fx.emit("pow", a.duck.root.position, { text: rec ? "RECORD!" : "FINISH!", impact: 1, offsetY: 0.18, life: 1.5 });
+        a.chirp("happy", true);
+      }
+      if (D.t > 40) stopDragStrip();
+    } else if (D.phase === "done") { D.done += dt; if (D.done > 4.5) { stopDragStrip(); return; } }
+    if (S.drag) dragHud();
+  }
+  function dragHud() {
+    const D = S.drag; if (!D) return;
+    gameHud.classList.remove("hidden");
+    if (D.phase === "count") { const n = Math.ceil(D.cd - 0.6); countEl.textContent = n > 0 ? String(n) : "GO!"; countEl.classList.add("show"); }
+    else if (D.phase === "run" && D.t > 0.8) countEl.classList.remove("show"); else if (D.phase === "run") { countEl.textContent = "GO!"; countEl.classList.add("show"); }
+    const t = D.phase === "count" ? 0 : D.t;
+    gameHud.innerHTML = `<span class="lbl">Drag strip</span><b class="mono">${fmt(t)}</b><span class="lbl">Best</span><b class="mono">${D.best ? fmt(D.best) : "–"}</b><button class="x" id="hudX" aria-label="End drag strip">×</button>`;
+    $("hudX").onclick = () => stopDragStrip();
   }
   function toggleRace(on) {
     if (!G.race) G.race = new Race(G);
@@ -462,8 +597,9 @@ async function main() {
     onPlace(key, hit) {
       voice.ensure();
       if (key === "duck") { const a = spawnDuck(hit.point, hit.yaw); if (a) { a.chirp("hello", true); toast("New duck!", `Say hi to ${a.serial}. Click it to take control.`, "info"); } }
-      else if (key === "skates") { if (hit.target) { hit.target.equipSkates(newSkates()); if (hit.target === ctlAgent) toast("Skates on!", "Push with W, brake with S.", "info"); } }
+      else if (key === "skates") { if (hit.target) { hit.target.equipSkates(newSkates()); if (hit.target === ctlAgent && !skateTutorial()) toast("Skates on!", "Push with W, brake with S.", "info"); } }
       else { const r = spawnProp(key, hit.point); if (r && key === "sock_ball" && !(G.football && G.football.active)) toast("Sock ball", "Walk into it to kick. Press F for a football match.", "info"); }
+      setTimeout(() => setBag(false), 0);
       refreshMoves();
     },
     onDelete(obj) { deleteThing(obj); },
@@ -487,21 +623,29 @@ async function main() {
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " ", "tab"].includes(k)) e.preventDefault();
     if (e.repeat) return;
     keys.add(k); S.lastInputAt = S.simTime; voice.ensure();
-    if (k === " ") beakDown();
+    if (k === " " && !ctlAgent.skates) beakDown();          // on skates Space is held for drifting instead
+    if (k === "shift") doMove("boost");
+    if (k === "b") setBag(!S.bagOpen);
     if (k === "e") grabKey();
     if (k === "v") setLayer({ surface: "xray", xray: "mind", mind: "surface" }[S.layer]);
-    if (k === "escape") { inv.select(null); inv.setTrash(false); if (laser.on) setLaser(false); }
+    if (!racePick.hidden) {
+      const m = { 1: "living", 2: "house", 3: "drag" }[k];
+      if (m && !racePick.querySelector(`[data-track="${m}"]`).hidden) { startTrack(m); return; }
+      if (k === "escape") { closeRacePick(); return; }
+    }
+    if (k === "escape") { inv.select(null); inv.setTrash(false); if (laser.on) setLaser(false); setBag(false); }
     if (KEYMOVE[k]) doMove(KEYMOVE[k]);
   });
-  addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); keys.delete(k); if (k === " ") beakUp(); });
+  addEventListener("keyup", (e) => { const k = e.key.toLowerCase(); keys.delete(k); if (k === " " && !ctlAgent.skates) beakUp(); });
   addEventListener("blur", () => keys.clear());
   function keyInput() {
     const f = (keys.has("w") || keys.has("arrowup") ? 1 : 0) - (keys.has("s") || keys.has("arrowdown") ? 1 : 0);
     const t = (keys.has("a") || keys.has("arrowleft") ? 1 : 0) - (keys.has("d") || keys.has("arrowright") ? 1 : 0);
     let fwd = f, turn = t;
     if (S.joy.active) { fwd = -S.joy.y; turn = -S.joy.x; if (Math.hypot(fwd, turn) < 0.15) { fwd = 0; turn = 0; } }
-    if (S.testInput) { fwd = S.testInput.fwd; turn = S.testInput.turn; }
-    return { fwd, turn };
+    let drift = keys.has(" ") || S.touchDrift;
+    if (S.testInput) { fwd = S.testInput.fwd; turn = S.testInput.turn; if (S.testInput.drift != null) drift = S.testInput.drift; }
+    return { fwd, turn, drift };
   }
   function beakDown() {
     const a = ctlAgent; if (S.mode === "garage" || a.fall) return;
@@ -599,6 +743,12 @@ async function main() {
   tBeak.addEventListener("pointerdown", (e) => { e.preventDefault(); tBeak.setPointerCapture(e.pointerId); beakDown(); });
   tBeak.addEventListener("pointerup", () => beakUp()); tBeak.addEventListener("pointercancel", () => beakUp());
   $("tGrab").addEventListener("click", () => grabKey());
+  $("tBoost").addEventListener("click", () => doMove("boost"));
+  const tDrift = $("tDrift");
+  tDrift.addEventListener("pointerdown", (e) => { e.preventDefault(); tDrift.setPointerCapture(e.pointerId); S.touchDrift = true; voice.ensure(); });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) tDrift.addEventListener(ev, () => { S.touchDrift = false; });
+  // the Drift row in the moves panel works as a hold button too
+  document.querySelectorAll('[data-move="drift"]').forEach(b => { b.addEventListener("pointerdown", () => { if (ctlAgent.skates) S.touchDrift = true; }); b.addEventListener("pointerup", () => { S.touchDrift = false; }); b.addEventListener("pointerleave", () => { S.touchDrift = false; }); });
   document.addEventListener("gesturestart", (e) => e.preventDefault());
 
   // ---------------------------------------------------------------- simulation step
@@ -615,6 +765,7 @@ async function main() {
     const moving = Math.abs(ki.fwd) > 0.01 || Math.abs(ki.turn) > 0.01;
     if (S.mode === "garage" || S.customising || a.fall) return { v: 0, w: 0 };
     if (G.race && G.race.active && G.race.frozen) return { v: 0, w: 0 };
+    if (S.drag && S.drag.phase === "count") return { v: 0, w: 0 };
     if (moving && a.task && a.task.kind !== "drop") { a.cancelTask(); markMat.opacity = 0; }
     const tc = a._runTask(dt);
     if (tc) { markMat.opacity = a.task && a.task.kind === "go" ? 0.9 : 0; return tc; }
@@ -628,7 +779,7 @@ async function main() {
       const s = a.steer(laser.point, null, 0.05); return { v: s.v, w: s.w };
     }
     if (a.duck.look.target === laser.point) a.duck.look.target = null;
-    const boost = G.race && G.race.active ? (world.race.speedBoost || 1) : 1;
+    const boost = G.race && G.race.active ? (G.race.R.speedBoost || 1) : 1;
     return { v: ki.fwd * (ki.fwd > 0 ? GAIT.maxSpeed * boost : GAIT.maxSpeed * 0.45), w: ki.turn * GAIT.maxYawRate * (ki.fwd !== 0 ? 0.75 : 1) };
   }
   function simStep(dt) {
@@ -637,7 +788,9 @@ async function main() {
     // LOD by distance to the camera
     for (const a of agents) { const d = a.controlled ? 0 : a.pos.distanceTo(camera.position); a.lod = a.controlled ? 0 : d > 1.9 ? 2 : d > 1.1 ? 1 : 0; }
     // commands
-    const cmdC = controlledCommand(C, players[0].input.read(), dt);
+    const ki0 = players[0].input.read();
+    for (const a of agents) a.driftHeld = a === C && !!ki0.drift && !!a.skates && S.mode !== "garage" && !S.customising;
+    const cmdC = controlledCommand(C, ki0, dt);
     for (const a of agents) {
       if (a === C) {
         a.step(dt, cmdC, (cmd) => {
@@ -675,6 +828,7 @@ async function main() {
     // games
     if (G.football) G.football.update(dt);
     if (G.race) G.race.update(dt);
+    if (S.drag) updateDragStrip(dt);
     // skates lying on the floor get picked up by a duck that walks over them
     if (S.mode === "garage" || S.customising) updateGarage(dt);
     if (S.customising) customiseTick(dt);
@@ -754,6 +908,7 @@ async function main() {
     const fx = S.W.xray + S.W.mind > 0.01;
     for (const a of agents) { a.rig.setWeights(S.W); a.rig.trackMotion = fx; }
     stage.setWeights(S.W); world.setWeights(S.W);
+    world.setFocus && world.setFocus(S.mode === "garage" ? null : C.duck.root.position);   // wall cutaway follows our duck
     updateCamera(dt || DT);
     { const t = cam.target; stage.follow(t, world.groundHeightAt(t.x, t.z, t.y + 0.05 - 0.125)); }
     world.update(dt); laser.dot.update(dt); scene.updateMatrixWorld(true);
@@ -763,11 +918,45 @@ async function main() {
     ring.visible = S.mode !== "garage" && agents.length > 1;
     ring.position.set(C.pos.x, C.duck.baseY + 0.0015, C.pos.z); ring.scale.setScalar(1 + 0.05 * Math.sin(S.simTime * 3));
     stage.update(dt);
+    updateDetailLOD();
     post.render(dt);
     const mindVisible = !$("mindPanel").classList.contains("hidden") && getComputedStyle(eyeBox.parentElement).display !== "none";
     if (mindVisible && (TEST || frame % 3 === 0)) renderEye();
     if (!$("mindPanel").classList.contains("hidden")) mind.drawDepth(tofCv);
-    updateHUD();
+    updateHUD(); updateBoostUI();
+  }
+
+  // ---------------------------------------------------------------- detail LOD: far ducks lose ink lines + shadows, far props stop casting
+  const LOD = { duckFar: 3.0, propFar: 4.0 };
+  function lodParts(a) {
+    const old = a._lodParts;
+    if (old && old.root === a.duck.root && (frame - old.at) < 120) return old;   // re-scan now and then (ink lines are added lazily)
+    if (old) { for (const o of old.ink) o.visible = true; for (const o of old.cast) o.castShadow = true; }
+    const ink = [], cast = [];
+    a.duck.root.traverse(o => { if (o.userData && o.userData.inkLine) ink.push(o); else if (o.isMesh && o.castShadow) cast.push(o); });
+    return (a._lodParts = { root: a.duck.root, at: frame, ink, cast, far: null });
+  }
+  function updateDetailLOD() {
+    const cp = camera.position;
+    const groups = world.house && world.house.groups;
+    for (const a of agents) {
+      // ducks standing in a room the world has culled (far away / out of view) are hidden with it
+      if (groups) { const r = world.roomAt(a.pos.x, a.pos.z), g = r && groups[r]; const hide = !a.controlled && !!g && !g.visible; if (a.duck.root.visible === hide) a.duck.root.visible = !hide; }
+      // rig.setWeights() re-shows ink / shell shadows every frame, so far ducks are re-hidden every frame (cheap)
+      const L = lodParts(a), far = !a.controlled && a.duck.root.position.distanceTo(cp) > LOD.duckFar;
+      if (!far && L.far === false) continue;
+      L.far = far;
+      for (const o of L.ink) o.visible = !far && o.visible;
+      if (far) for (const o of L.ink) o.visible = false;
+      for (const o of L.cast) o.castShadow = !far;
+    }
+    if ((frame & 7) === 0) for (const p of phys.props) {
+      const o = p.object; if (o.userData._cast === undefined) { let c = false; o.traverse(m => { if (m.isMesh && m.castShadow) c = true; }); o.userData._cast = c; }
+      if (!o.userData._cast) continue;
+      const far = o.position.distanceTo(cp) > LOD.propFar;
+      if (o.userData._far === far) continue;
+      o.userData._far = far; o.traverse(m => { if (m.isMesh) m.castShadow = !far; });
+    }
   }
 
   // ---------------------------------------------------------------- HUD (sensor panel)
@@ -908,7 +1097,8 @@ async function main() {
     const side = V(dir.z, 0, -dir.x);
     return [[1.0, -0.5], [1.15, 0.55], [1.45, -0.65], [1.65, 0.6]].map(([d, s]) => {
       const p = V(wb[0], 0, wb[2]).addScaledVector(dir, d).addScaledVector(side, s);
-      p.x = clamp(p.x, world.bounds.minX + 0.2, world.bounds.maxX - 0.2); p.z = clamp(p.z, world.bounds.minZ + 0.2, world.bounds.maxZ - 0.2);
+      const LR = rawWorld.livingRoom || world.room;   // the customise stage lives in the living room
+      p.x = clamp(p.x, LR.x0 + 0.2, LR.x1 - 0.2); p.z = clamp(p.z, LR.z0 + 0.2, LR.z1 - 0.2);
       // never closer to the turntable than the stage keep-out (+ a margin)
       const dx = p.x - wb[0], dz = p.z - wb[2], L = Math.hypot(dx, dz), R = STAGE_R + 0.15;
       if (L < R) { const u = L > 1e-4 ? [dx / L, dz / L] : [dir.x, dir.z]; p.x = wb[0] + u[0] * R; p.z = wb[2] + u[1] * R; }
@@ -1001,6 +1191,8 @@ async function main() {
     laserAtWorld: (x, z) => { laser.on = true; laser.point.set(x, world.groundHeightAt(x, z, H) + 0.003, z); laser.visible = true; laser.dot.setVisible(true); laser.from.copy(camera.position); laser.dot.set(laser.point, V(0, 1, 0), camera.position.clone().add(V(0.2, 0, 0))); refreshMoves(); },
     laserOff: () => setLaser(false),
     football: (on) => toggleFootball(on), race: (on) => toggleRace(on),
+    track: (kind) => startTrack(kind), lod: LOD,
+    spreadDucks: () => { const pts = world.anchors.houseSpawnPoints || []; agents.forEach((a, i) => { if (a === ctlAgent || !pts.length) return; const sp = pts[(i * 5) % pts.length]; a.teleport(V(...sp.position), sp.yaw || 0); }); }, get drag() { return S.drag && { phase: S.drag.phase, t: +S.drag.t.toFixed(2), best: S.drag.best }; },
     kickBall: (x, z) => { const b = G.balls[0]; if (b) phys.impulse(b, V(x, 0.0, z)); },
     placeBall: (x, z) => { const b = G.balls[0]; if (b) phys.place(b, V(x, world.groundHeightAt(x, z, H) + 0.002, z)); },
     dragItem: (key, wx, wz, hold) => { const p = V(wx, world.groundHeightAt(wx, wz, H), wz); camera.updateMatrixWorld(); const [x, y] = project(p); return inv.dragTo(key, x, y, hold); },
@@ -1008,6 +1200,8 @@ async function main() {
     selectItem: (k) => inv.select(k), clickAt: (x, y) => click(x, y), project: (x, y, z) => project(V(x, y, z)),
     selectPart: (id) => selectPart(workshop.parts.find(p => p.id === id)), replaceSelected,
     sfx: { audio: () => voice.ctx ? voice.ctx.state + " t=" + voice.ctx.currentTime.toFixed(2) : "none", counts: sfx.counts, reset: () => sfx.reset(), surfaceAt: (x, y, z) => sfx.surfaceAt(V(x, y, z)) },
+    skate: () => { const C = ctlAgent; return { sp: +C.sv.length().toFixed(3), boostT: +C.boostT.toFixed(2), cd: +C.boostCd.toFixed(2), drifting: C.drifting, driftT: +C.driftT.toFixed(2), slip: +C.slip.toFixed(3), lean: +C.duck.leanW.toFixed(3), fall: C.fall && C.fall.kind, fx: S.fxLog.slice(-6), skateFx: window.__fx && window.__fx.skate ? window.__fx.skate.count : -1 }; },
+    boost: () => ctlAgent.boost(), bag: (open) => setBag(open), get bagOpen() { return S.bagOpen; },
     custom: { cam: CZCAM, stageGap: () => { const w = world.workbench.position; return Math.min(...agents.filter(a => a !== ctlAgent).map(a => Math.hypot(a.pos.x - w[0], a.pos.z - w[2]))); }, enter: () => enterCustomise(), set: (c) => { customiser.set(c); applyChoice(ctlAgent, customiser.choice); }, randomise: () => customiser.randomise(), go: () => customiser.go(), get choice() { return customiser.choice; }, voices: VOICES },
     toast, skin: (n, t) => workshop.skin(n, t),
     safety: (on) => { mind.safety = on; $("safetyBtn").setAttribute("aria-pressed", String(on)); },

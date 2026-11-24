@@ -20,7 +20,9 @@ import {
   makeChessPawn, makeChessKnight, makeWickerBall, makeToyCar, makeCookie, makeToast, makeCroissant,
 } from "./props.js";
 import { assets } from "./assets.js";
-import { toonify, toonifyTree, INK } from "./toon.js";
+import { toonify, toonifyTree, INK, FOCUS } from "./toon.js";
+import { buildHouse, cutaway, CUT, ROOMS, DOORS, SURFACE_TYPES } from "./house.js";
+import { PROP_CATALOG } from "./props.js";
 
 export const TABLE = { width: 1.6, depth: 1.0, thickness: 0.04, height: 0.75, legInset: 0.07 };
 export const FLOOR_Y = -TABLE.height;
@@ -255,6 +257,8 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const cuboid = (id, cx, cy, cz, hx, hy, hz, rot = Q0, friction = 0.8) => colliders.push({ id, type: "cuboid", halfExtents: [hx, hy, hz], position: [cx, cy, cz], rotation: rot, friction });
   const rect = (x0, x1, z0, z1, h, id) => surfaces.push({ id, h: () => h, test: (x, z) => x >= x0 && x <= x1 && z >= z0 && z <= z1 });
   const disc = (cx, cz, r, h, id) => surfaces.push({ id, h: () => h, test: (x, z) => (x - cx) ** 2 + (z - cz) ** 2 <= r * r });
+  const cylinder = (id, x, y, z, r, hh, friction = 0.6) => colliders.push({ id, type: "cylinder", radius: r, halfHeight: hh, position: [x, y, z], rotation: Q0, friction });
+  const convex = (id, points, friction = 0.8) => colliders.push({ id, type: "convex", points, position: [0, 0, 0], rotation: Q0, friction });
   const blocker = (x0, y0, z0, x1, y1, z1) => camBlockers.push(new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1)));
   const tint = (m) => { tintMats.push([m, m.color.clone()]); return m; };
 
@@ -267,6 +271,7 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const floor = add(new THREE.Mesh(new THREE.PlaneGeometry(RW, RD).rotateX(-Math.PI / 2), floorMat));
   floor.position.set((ROOM.x0 + ROOM.x1) / 2, F, (ROOM.z0 + ROOM.z1) / 2); floor.castShadow = false; floor.name = "world_floor";
   cuboid("room_floor", 0, F - 0.05, 0, 3.2, 0.05, 2.7);
+  cuboid("house_floor", 0, F - 0.06, 2.6, 7.3, 0.05, 5.3);      // whole house + garden (1 cm under the living floor)
 
   // walls: warm plaster, white baseboard, window on the back wall
   const wallMat = tint(new THREE.MeshStandardMaterial({ name: "wall", color: "#FFF0D2", roughness: 1 }));
@@ -280,19 +285,12 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   shell.box(ROOM.x1 - (WIN.x + WIN.w / 2), WH, WT, wallMat, (ROOM.x1 + WIN.x + WIN.w / 2) / 2, F + WH / 2, bz);
   shell.box(WIN.w, WIN.y0 - F, WT, wallMat, WIN.x, (F + WIN.y0) / 2, bz);
   shell.box(WIN.w, F + WH - (WIN.y0 + WIN.h), WT, wallMat, WIN.x, (WIN.y0 + WIN.h + F + WH) / 2, bz);
-  shell.box(WT, WH, RD + 2 * WT, wallMat, ROOM.x0 - WT / 2, F + WH / 2, 0);
-  shell.box(WT, WH, RD + 2 * WT, wallMat, ROOM.x1 + WT / 2, F + WH / 2, 0);
-  shell.box(RW, WH, WT, wallMat, 0, F + WH / 2, ROOM.z1 + WT / 2);
+  // left / right / front walls (with doorways into the bedroom, kitchen and hallway) are built by house.js
   cuboid("wall_back", 0, F + WH / 2, bz, RW / 2 + WT, WH / 2, WT / 2);
-  cuboid("wall_front", 0, F + WH / 2, ROOM.z1 + WT / 2, RW / 2 + WT, WH / 2, WT / 2);
-  cuboid("wall_left", ROOM.x0 - WT / 2, F + WH / 2, 0, WT / 2, WH / 2, RD / 2 + WT);
-  cuboid("wall_right", ROOM.x1 + WT / 2, F + WH / 2, 0, WT / 2, WH / 2, RD / 2 + WT);
   // baseboards (8 cm) — also the duck-height bump along the walls
   const BB = 0.08, BT = 0.015;
   shell.box(RW, BB, BT, trimMat, 0, F + BB / 2, ROOM.z0 + BT / 2);
-  shell.box(RW, BB, BT, trimMat, 0, F + BB / 2, ROOM.z1 - BT / 2);
-  shell.box(BT, BB, RD, trimMat, ROOM.x0 + BT / 2, F + BB / 2, 0);
-  shell.box(BT, BB, RD, trimMat, ROOM.x1 - BT / 2, F + BB / 2, 0);
+
   // window frame, mullions and sill
   const FW = 0.06;
   shell.box(WIN.w + 0.12, FW, 0.16, trimMat, WIN.x, WIN.y0 - FW / 2 + 0.01, ROOM.z0 + 0.02);                   // sill
@@ -737,6 +735,12 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   cuboid("toolbox", GA.x + 0.38, F + 0.084, GA.z + 0.28, 0.16, 0.08, 0.085, qY(-0.2));
   blobs.add(GA.x + 0.38, F + 0.005, GA.z + 0.28, 0.45, 0.28, 0.4, true, -0.2);
 
+  // ================================================================ THE REST OF THE HOUSE (hallway, kitchen, bedroom, garden)
+  cutaway(wallMat); cutaway(trimMat);
+  const PHONE = opts.phone ?? (typeof matchMedia !== "undefined" && matchMedia("(max-width: 720px), (pointer: coarse)").matches);
+  const house = buildHouse({ root, renderer, hi, phone: PHONE, F, Batch, wallMat, trimMat, plankMat: floorMat, shell, cuboid, cylinder, convex, blocker, tint,
+    surface: (s) => surfaces.push(s) });
+
   // ================================================================ build merged statics
   const statics = [...batch.build(root, { name: "static" }), ...shell.build(root, { name: "shell", cast: false })];
   toonifyTree(root);   // every standard material in the room becomes banded toon shading
@@ -782,6 +786,9 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   addProp(placeProp(makeToast(), 0.35, F, 1.35, 0.4));
   addProp(placeProp(makeCroissant(), -0.85, F, 0.25, 1.1));
 
+  // house toys (per room)
+  for (const [key, x, z, yaw] of house.props) { const e = PROP_CATALOG[key]; if (!e) continue; const p = e.make(); addProp(placeProp(p, x, groundHeightAt(x, z), z, yaw)); }
+
   // ================================================================ queries
   const STEP = 0.04;
   function groundHeightAt(x, z, y) {
@@ -793,6 +800,30 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
       if (h > best || !any) { best = Math.max(best, h); any = true; }
     }
     return best;
+  }
+  // surfaces: what a duck stands on (sound engine, skate grip, bounce)
+  const SURF_BY_ID = { tabletop: "table", platform: "table", table_ramp: "table", coffee_table: "table", shelf_top: "table", plant_pot: "table", notebook: "card",
+    access_landing: "card", rug: "rug", sofa_seat: "rug", pouf: "rug", garage_mat: "rug", turntable: "rug" };
+  const surfType = (s) => s.type || SURF_BY_ID[s.id] || (/^access|card|flight/.test(s.id) ? "card" : "table");
+  const floorType = (x, z) => {
+    const K = ROOMS.kitchen, G = ROOMS.garden;
+    if (x >= K.x0 - 0.06 && x <= K.x1 && z >= K.z0 && z <= K.z1) return "tile";
+    if (z >= G.z0 - 0.06 && z <= G.z1 + 0.1) return "grass";
+    return "wood";
+  };
+  const _surf = {};
+  function surfaceAt(x, z, y) {
+    let best = null, bh = F;
+    for (const s of surfaces) {
+      if (!s.test(x, z)) continue;
+      const h = s.h(x, z);
+      if (y !== undefined && h > y + STEP) continue;
+      if (h >= bh - 1e-6) { bh = h; best = s; }
+    }
+    const type = best ? surfType(best) : floorType(x, z);
+    const T2 = SURFACE_TYPES[type] || SURFACE_TYPES.wood;
+    _surf.type = type; _surf.friction = T2.friction; _surf.bounce = T2.bounce; _surf.height = bh; _surf.id = best ? best.id : "floor";
+    return _surf;
   }
   const hx = T.width / 2, hz = T.depth / 2;
   const isOverDrop = (x, z, y) => {
@@ -812,11 +843,21 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const safePolygon = [[-hx, -hz], [hx, -hz], [hx, hz], [-hx, hz]];
 
   // camera: stay inside the room, above the floor, and out of furniture
-  const cameraBounds = { min: [ROOM.x0 + 0.12, F + 0.05, ROOM.z0 + 0.12], max: [ROOM.x1 - 0.12, F + ROOM.wallHeight - 0.15, ROOM.z1 - 0.12] };
+  const HOUSE = { x0: -7, x1: 7, z0: ROOM.z0, z1: ROOMS.garden.z1 };
+  const cameraBounds = { min: [HOUSE.x0 + 0.12, F + 0.05, HOUSE.z0 + 0.12], max: [HOUSE.x1 - 0.12, F + ROOM.wallHeight - 0.15, HOUSE.z1 - 0.12] };
+  // camera boxes: each room (a camera may sit in a neighbouring room: the walls in between cut away)
+  const camBoxes = Object.entries(ROOMS).map(([k, r]) => ({ k, x0: r.x0 + 0.12, x1: r.x1 - 0.12, z0: r.z0 + 0.12, z1: r.z1 - 0.12, y1: F + (r.outdoor ? 3.2 : ROOM.wallHeight - 0.15) }));
+  let cameraFree = false;
   function clampCamera(pos) {
-    pos.x = THREE.MathUtils.clamp(pos.x, cameraBounds.min[0], cameraBounds.max[0]);
-    pos.z = THREE.MathUtils.clamp(pos.z, cameraBounds.min[2], cameraBounds.max[2]);
-    pos.y = THREE.MathUtils.clamp(pos.y, cameraBounds.min[1], cameraBounds.max[1]);
+    if (cameraFree) return pos;
+    let best = null, bd = Infinity;
+    for (const b of camBoxes) {
+      const cx = THREE.MathUtils.clamp(pos.x, b.x0, b.x1), cz = THREE.MathUtils.clamp(pos.z, b.z0, b.z1);
+      const d = (cx - pos.x) ** 2 + (cz - pos.z) ** 2; if (d < bd) { bd = d; best = b; }
+    }
+    pos.x = THREE.MathUtils.clamp(pos.x, best.x0, best.x1);
+    pos.z = THREE.MathUtils.clamp(pos.z, best.z0, best.z1);
+    pos.y = THREE.MathUtils.clamp(pos.y, F + 0.05, best.y1);
     for (const b of camBlockers) {
       if (!b.containsPoint(pos)) continue;
       // push out through the nearest face (never downward through the floor)
@@ -855,6 +896,11 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
     raceStart: { position: RACE.start, direction: RACE.dir, width: RACE.width, lineA: [RACE.start[0], F, RACE.start[2] - RACE.width / 2], lineB: [RACE.start[0], F, RACE.start[2] + RACE.width / 2] },
     checkpoints,
     window: { center: [WIN.x, WIN.y0 + WIN.h / 2, ROOM.z0], size: [WIN.w, WIN.h] },
+    rooms: { living: { center: [0, F, 0], bounds: { min: [ROOM.x0, F, ROOM.z0], max: [ROOM.x1, F + ROOM.wallHeight, ROOM.z1] }, spawnPoints }, ...house.rooms },
+    dragStrip: house.dragStrip,
+    raceHouse: house.raceHouse,
+    houseSpawnPoints: house.spawnPoints,
+    doors: DOORS.map(d => ({ id: d.id, center: d.axis === "x" ? [(d.a + d.b) / 2, F, d.at] : [d.at, F, (d.a + d.b) / 2], width: d.b - d.a, axis: d.axis })),
   };
 
   // ================================================================ per-frame + modes
@@ -863,9 +909,40 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const cyan = new THREE.Color("#64D2FF").multiplyScalar(2), violet = new THREE.Color("#BF5AF2").multiplyScalar(2);
   const spotBase = spot.intensity, sunBase = sun.intensity;
   let t = 0, ringFx = 0;
+  // ---- per-frame view hook (runs inside the main render: camera known) -> cutaway uniforms + room culling
+  const focus = new THREE.Vector3(0, F + 0.12, 0); let focusSet = false;
+  const roomBoxes = Object.fromEntries(Object.entries(ROOMS).map(([k, r]) => [k, new THREE.Box3(new THREE.Vector3(r.x0, F, r.z0), new THREE.Vector3(r.x1, F + 2.5, r.z1))]));
+  const cull = { distance: 7.5, enabled: true };
+  const lightBase = { kitchen: house.lights.kitchen.intensity, bedroom: house.lights.bedroom.intensity };
+  const viewProbe = new THREE.Mesh(new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3)),
+    new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, depthTest: false }));
+  viewProbe.frustumCulled = false; viewProbe.castShadow = false; viewProbe.userData.lookFX = true; viewProbe.raycast = () => {}; viewProbe.name = "world_view";
+  viewProbe.onBeforeRender = (r, sc, cam) => {
+    if (!cam.isPerspectiveCamera) return;
+    const el = r.domElement; if (Math.abs(cam.aspect - el.width / Math.max(1, el.height)) > 0.02) return;   // main view only
+    const fp = focusSet ? focus : (FOCUS.set ? FOCUS.pos : null);
+    cam.getWorldPosition(CUT.uCutCam.value);
+    if (fp) { CUT.uCutFocus.value.copy(fp); CUT.uCutOn.value = cameraFree ? 0 : 1; }
+    if (!cull.enabled) return;
+    const cp = CUT.uCutCam.value;
+    for (const [k, g] of Object.entries(house.groups)) {
+      const b = roomBoxes[k], near = b.distanceToPoint(cp) < cull.distance || (fp && b.containsPoint(fp));
+      g.visible = near;
+      if (house.lights[k]) house.lights[k].intensity = near ? lightBase[k] : 0;
+    }
+  };
+  root.add(viewProbe);
   return {
     root, meshes, statics, props, colliders, hazards, safePolygon, anchors,
-    table: { ...T }, room: { ...ROOM }, floorY: F, cameraBounds, cameraBlockers: camBlockers,
+    table: { ...T }, room: { ...ROOM, ...HOUSE }, livingRoom: { ...ROOM }, rooms: ROOMS, floorY: F, cameraBounds, cameraBlockers: camBlockers,
+    surfaceAt, house, cull, workbench: anchors.workbench,
+    /** call each frame with the controlled duck's position (else the camera target from the stage is used) */
+    setFocus(p) { if (p) { focus.set(p.x, p.y + 0.12, p.z); focusSet = true; } else focusSet = false; },
+    /** overview / dollhouse: true disables clampCamera and cuts every wall at 60 cm with an inked top edge */
+    setCameraFree(b) { cameraFree = !!b; CUT.uCutTop.value = b ? F + 0.6 : 0; },
+    /** draw calls per room (merged static meshes) */
+    drawCallsByRoom() { const o = { living: statics.length + 0 }; for (const [k, g] of Object.entries(house.groups)) { let n = 0; g.traverse(m => { if (m.isMesh && m.visible) n++; }); o[k] = n; } return o; },
+    roomAt(x, z) { for (const [k, r] of Object.entries(ROOMS)) if (x >= r.x0 - 0.06 && x <= r.x1 + 0.06 && z >= r.z0 - 0.06 && z <= r.z1 + 0.06) return k; return null; },
     turntable: { object: turntable, platter, spot, state: turntableState, topY: F + 0.004 + GA.h },
     groundHeightAt, isOverDrop, distanceToEdge, clampCamera, addProp, removeProp,
     update(dt) {

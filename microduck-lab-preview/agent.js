@@ -13,7 +13,16 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
 function mulberry(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-export const SKATE = { accel: 0.42, maxSpeed: 0.42, friction: 0.32, brake: 0.9, grip: 2.4, turn: 2.0, strokeHz: 1.25 };
+export const SKATE = {
+  accel: 0.42, maxSpeed: 0.42, friction: 0.32, brake: 0.9, grip: 2.4, turn: 2.0, strokeHz: 1.25,
+  boost: { mult: 1.5, time: 1.2, cooldown: 2.0, kick: 0.22, accel: 1.1 },
+  drift: { grip: 0.45, turnMult: 1.7, flick: 0.22, minSpeed: 0.1, slingAfter: 0.6, slingKick: 0.16, slingTime: 0.5 },
+  crashSpeed: 0.5,    // only a wall hit faster than this (i.e. boosting) knocks it over
+};
+
+// which rooms each doorway joins (ids from the house build)
+const DOOR_ROOMS = { living_hall: ["living", "hallway"], bedroom_hall: ["bedroom", "hallway"], kitchen_hall: ["kitchen", "hallway"],
+  living_bed: ["living", "bedroom"], living_kitchen: ["living", "kitchen"], patio: ["hallway", "garden"] };
 
 export class Agent {
   /**
@@ -24,6 +33,8 @@ export class Agent {
     this.serial = serial; this.voice = voiceParams(serial); this.skin = skin || "cream";
     this.body = G.phys.addDuck();
     this.pos = V(); this.yaw = 0; this.v = 0; this.w = 0; this.vel = V(); this.sv = V();
+    // skate tricks: boost (timed burst + cooldown) and drift (held; slingshot on release)
+    this.boostT = 0; this.boostCd = 0; this.driftHeld = false; this.drifting = false; this.driftT = 0; this.slip = 0;
     this.cmd = { v: 0, w: 0 }; this.filtered = { v: 0, w: 0, kind: null };
     this.task = null; this.held = null; this.beakOpen = false; this.fall = null;
     this.skates = null; this.pounce = null; this.lastKick = -9; this.stuckT = 0;
@@ -44,7 +55,7 @@ export class Agent {
   }
 
   teleport(p, yaw) {
-    this.pos.copy(p); this.yaw = yaw; this.v = this.w = 0; this.vel.set(0, 0, 0); this.sv.set(0, 0, 0);
+    this.pos.copy(p); this.yaw = yaw; this.v = this.w = 0; this.vel.set(0, 0, 0); this.sv.set(0, 0, 0); this.boostT = 0; this.drifting = false; this.driftT = 0;
     this.fall = null; this.pounce = null; this.duck.hop = 0;
     this.duck.teleport(this.pos, yaw); this.body.setCharPosition(this.pos);
     this.duck.root.updateMatrixWorld(true); this.body.sync(this.duck); this.body.snap();
@@ -336,6 +347,8 @@ export class Agent {
       }
       this.body.charPosition(this.pos);
       this.vel.copy(this.pos).sub(before).divideScalar(dt); this.vel.y = 0;
+      if (this.skates) this._skateCollide(dt);
+      this._surfaceTick(dt);
       if (W.groundHeightAt(this.pos.x, this.pos.z, this.pos.y + 0.03) < this.pos.y - 0.06) this._startEdgeFall();
     }
     // falling / lying
@@ -371,40 +384,88 @@ export class Agent {
     if (!this.fall) { duck.root.updateMatrixWorld(true); this.body.sync(duck); }
   }
 
+  /** BOOST: a burst forward (top speed x1.5 for a moment), then a cooldown. returns true if it fired */
+  boost(kind = "boost") {
+    const B = SKATE.boost;
+    if (!this.skates || this.fall) return false;
+    if (kind === "boost") { if (this.boostCd > 0) return false; this.boostCd = B.time + B.cooldown; this.boostT = B.time; }
+    else this.boostT = Math.max(this.boostT, SKATE.drift.slingTime);          // slingshot: mini boost, no cooldown
+    this.sv.addScaledVector(this.fwd, kind === "boost" ? B.kick : SKATE.drift.slingKick);
+    this.sound("boost", { vol: kind === "boost" ? 1 : 0.65 });
+    this.G.events?.boost?.(this, kind);
+    return true;
+  }
   _skate(dt, F) {
-    // F carries {v, w}; v>0 pushes, v<0 brakes. Momentum, drift and wobble.
-    const S = SKATE, d = this.duck, W = this.G.world;
-    const f = this.fwd;
+    // F carries {v, w}; v>0 pushes, v<0 brakes. Momentum, drift, boost and a lean.
+    const S = SKATE, d = this.duck, W = this.G.world, f = this.fwd;
+    // surface under the wheels (friction scales grip; world.surfaceAt when available, else a heuristic)
+    const surf = this.G.surfaceAt ? this.G.surfaceAt(this.pos.x, this.pos.y, this.pos.z) : null;
+    // world friction is absolute (wood .7, rug 1, kitchen tile .15); the skate model is tuned on wood
+    const fric = surf && surf.friction != null ? clamp(surf.friction / 0.7, 0.18, 1.45) : 1;
+    this.skateFric = fric;
+    this.boostCd = Math.max(0, this.boostCd - dt); this.boostT = Math.max(0, this.boostT - dt);
+    const boosting = this.boostT > 0;
+    let sp0 = this.sv.length();
+    // drift: held + turning + moving. Lower grip, faster turn, rear slides out
+    const wantDrift = this.driftHeld && Math.abs(F.w) > 0.1 && sp0 > S.drift.minSpeed * Math.min(1, fric);
+    if (wantDrift && !this.drifting) { this.drifting = true; this.driftT = 0; this.yaw = wrap(this.yaw + Math.sign(F.w) * S.drift.flick); this.G.events?.drift?.(this, true); }
+    if (this.drifting && !wantDrift) {
+      this.drifting = false; this.G.events?.drift?.(this, false);
+      if (this.driftT > S.drift.slingAfter && !this.fall) this.boost("sling");
+    }
+    if (this.drifting) this.driftT += dt;
     const pushing = F.v > 0.02;
     if (pushing) {
       d.stroke = (d.stroke + S.strokeHz * dt) % 1; if (d.stroke < S.strokeHz * dt) { d.strokeSide *= -1; this.sound("push", { vol: clamp(F.v / GAIT.maxSpeed, 0.4, 1) }); }
       const phase = Math.max(0, Math.sin(d.stroke * Math.PI * 2));
-      this.sv.addScaledVector(f, S.accel * (F.v / GAIT.maxSpeed) * (0.4 + phase) * dt);
+      this.sv.addScaledVector(f, S.accel * (this.speedMult || 1) * (F.v / GAIT.maxSpeed) * (0.4 + phase) * dt);
     } else d.stroke = Math.max(0, d.stroke - dt);
+    if (boosting) this.sv.addScaledVector(f, S.boost.accel * dt);
     if (F.v < -0.01) this.sv.multiplyScalar(Math.exp(-S.brake * dt));
-    this.sv.multiplyScalar(Math.exp(-S.friction * dt));
+    this.sv.multiplyScalar(Math.exp(-S.friction * fric * dt));
     // the refuse reflex brakes hard
     if (F.kind === "refuse") this.sv.multiplyScalar(Math.exp(-6 * dt));
-    let sp = this.sv.length(); if (sp > S.maxSpeed) { this.sv.multiplyScalar(S.maxSpeed / sp); sp = S.maxSpeed; }
+    const top = S.maxSpeed * (boosting ? S.boost.mult : 1) * (this.speedMult || 1);   // speedMult: drag strip
+    let sp = this.sv.length(); if (sp > top) { const k = boosting ? top / sp : Math.max(top / sp, Math.exp(-2.5 * dt)); this.sv.multiplyScalar(k); sp = this.sv.length(); }
     // steer; the velocity only slowly follows the heading -> drift
-    this.w = approach(this.w, F.w * (S.turn / GAIT.maxYawRate), 8 * dt);
+    const turn = S.turn * (this.drifting ? S.drift.turnMult : 1);
+    this.w = approach(this.w, F.w * (turn / GAIT.maxYawRate), (this.drifting ? 12 : 8) * dt);
     this.yaw = wrap(this.yaw + this.w * dt);
-    const along = this.sv.dot(f);
-    const target = f.clone().multiplyScalar(along >= 0 ? sp : -sp);
-    this.sv.lerp(target, 1 - Math.exp(-S.grip * dt));
+    const f2 = this.fwd, along = this.sv.dot(f2);
+    const target = f2.clone().multiplyScalar(along >= 0 ? sp : -sp);
+    const grip = (this.drifting ? S.drift.grip : S.grip) * fric;
+    this.sv.lerp(target, 1 - Math.exp(-grip * dt));
     // ramps pull it downhill
     const e = 0.03, yy = this.pos.y + 0.03, gx = (W.groundHeightAt(this.pos.x + e, this.pos.z, yy) - W.groundHeightAt(this.pos.x - e, this.pos.z, yy)) / (2 * e);
     const gz = (W.groundHeightAt(this.pos.x, this.pos.z + e, yy) - W.groundHeightAt(this.pos.x, this.pos.z - e, yy)) / (2 * e);
     const slope = Math.abs(gx) < 0.6 && Math.abs(gz) < 0.6 ? Math.hypot(gx, gz) : 0;
     if (slope > 0) { this.sv.x -= gx * 2.2 * dt; this.sv.z -= gz * 2.2 * dt; }
+    this._skIntent = V(this.sv.x * dt, 0, this.sv.z * dt);
     this.body.moveChar(V(this.sv.x * dt, -0.004, this.sv.z * dt));
-    // wobble: speed, slip and slope; too much and it falls over
-    const slip = Math.abs(this.sv.clone().cross(f).y);
-    const wob = clamp((sp - 0.28) / 0.14, 0, 1) * 0.7 + slip * 2.2 + slope * 2.5;
-    d.wobble = lerp(d.wobble, clamp(wob, 0, 1.2), 1 - Math.exp(-3 * dt));
+    // lean (visual only): into the turn at speed; counter-lean while drifting
+    this.slip = Math.abs(this.sv.x * f2.z - this.sv.z * f2.x);
+    const spk = clamp(sp / 0.35, 0, 1.4);
+    d.skateLean = this.drifting ? clamp(-this.w * 0.16 * spk, -0.42, 0.42) : clamp(this.w * 0.11 * spk, -0.3, 0.3);
+    // wobble is cosmetic now (shake at very high speed / slopes); it never tips the duck over
+    const wob = clamp((sp - S.maxSpeed * 1.05) / 0.2, 0, 1) * 0.35 + slope * 1.2;
+    d.wobble = lerp(d.wobble, clamp(wob, 0, 0.6), 1 - Math.exp(-3 * dt));
     // wheels clack when they drop onto a lower surface (step, ramp edge) at speed
     const gy = this.pos.y; if (this._skGy !== undefined && this._skGy - gy > 0.006 && sp > 0.08) this.sound("clack"); this._skGy = gy;
-    if (d.wobble > 0.82 && this.rand() < dt * 2.2) this.tipOver(V().crossVectors(UP, f).multiplyScalar(this.rand() < 0.5 ? 1 : -1), "skates");
+  }
+  /** after the character controller moved: a wall stops the skates; a hard enough hit knocks the duck over */
+  _skateCollide(dt) {
+    if (!this._skIntent) return;
+    const I = this._skIntent; this._skIntent = null;
+    const want = Math.hypot(I.x, I.z); if (want < 1e-5) return;
+    const got = Math.hypot(this.vel.x, this.vel.z) * dt;
+    const blocked = 1 - got / want;
+    if (blocked < 0.5) return;
+    const sp = this.sv.length();
+    if (sp > SKATE.crashSpeed && !this.fall) {
+      this.sound("clack"); this.tipOver(V(-I.x, 0, -I.z).normalize(), "crash");
+      this.G.events?.crash?.(this);
+    } else this.sv.multiplyScalar(0.25);   // bump: stop against the wall
+    this.drifting = false; this.boostT = 0;
   }
 
   _kick() {
@@ -436,7 +497,7 @@ export class Agent {
     if (this.task) return this._runTask(dt) || { v: 0, w: 0 };
     B.t += dt;
     // modes the whole room is playing take over
-    if (G.race && G.race.active) return this._steerAvoid(G.race.targetFor(this), GAIT.maxSpeed * (G.world.race.speedBoost || 1) * (0.8 + 0.16 * ((this.index * 37) % 7) / 7), 0.03, G.race.frozen);
+    if (G.race && G.race.active) return this._steerAvoid(G.race.targetFor(this), GAIT.maxSpeed * (G.race.R.speedBoost || 1) * (0.8 + 0.16 * ((this.index * 37) % 7) / 7), 0.03, G.race.frozen);
     if (G.football && G.football.active) return this._football(dt);
     if (G.laser.visible && G.laser.point.distanceTo(this.pos) < 0.8) return this._laser(dt);
     if (B.t > B.dur) this._pick();
@@ -452,6 +513,18 @@ export class Agent {
         const d = goal.distanceTo(this.pos);
         if (d < 0.04 && Math.abs(L.v) < 0.02) { const e = wrap(L.yaw - this.yaw); return { v: 0, w: clamp(e * 3, -1.2, 1.2) }; }
         return this._steerAvoid(goal, GAIT.maxSpeed * clamp(d / 0.25, 0.4, 1), 0.03);
+      }
+      case "roam": {
+        // walk to another room of the house (via doors), then settle there
+        if (!B.route) {
+          const pts = this.G.world.anchors.houseSpawnPoints; const sp = pts[Math.floor(this.rand() * pts.length)];
+          B.route = this._route(V(sp.position[0], sp.position[1], sp.position[2])); B.ri = 0; B.best = 99; B.stuck = 0;
+        }
+        const tgt = B.route[B.ri]; if (!tgt) { B.route = null; this._pick("wander"); break; }
+        const dd = Math.hypot(tgt.x - this.pos.x, tgt.z - this.pos.z);
+        if (dd < 0.12) { B.ri++; B.best = 99; if (B.ri >= B.route.length) { B.route = null; this._pick("idle"); } break; }
+        if (dd < B.best - 0.02) { B.best = dd; B.stuck = 0; } else if ((B.stuck += dt) > 4) { B.route = null; this._pick("wander"); break; }
+        return this._steerAvoid(tgt, GAIT.maxSpeed * 0.85, 0.03);
       }
       case "wander": {
         if (!B.target || B.target.distanceTo(this.pos) < 0.04) { if (B.target) { B.state = "idle"; B.t = 0; B.dur = 1 + this.rand() * 2; if (this.rand() < 0.3) this.emote(["look", "nod", "dance"][Math.floor(this.rand() * 3)]); break; } B.target = W.randomSpot(this.pos, 0.45, this.rand); }
@@ -499,11 +572,58 @@ export class Agent {
     const L = Math.hypot(dx, dz) || 1, R = S.r * 1.08;
     return V(S.x + dx / L * R, p.y, S.z + dz / L * R);
   }
+  /** what's underfoot: splash in water, hop on the bouncy bed (visual hop only, physics stays on the surface) */
+  _surfaceTick(dt) {
+    const G = this.G, W = G.world, d = this.duck;
+    if (!W.surfaceAt) return;
+    const s = W.surfaceAt(this.pos.x, this.pos.z, this.pos.y + 0.02);
+    const type = s.type, bounce = s.bounce || 0, prev = this.surfType; this.surfType = type;
+    const sp = this.skates ? this.sv.length() : Math.abs(this.v), now = G.now();
+    if (type === "water" && !this.fall && ((prev !== "water" && prev !== undefined) || (sp > 0.1 && now - (this._splashAt || -9) > 0.55))) {
+      this._splashAt = now; this.sound("splash", { vol: clamp(0.5 + sp * 2, 0.5, 1) }); G.events?.splash?.(this, sp);
+    }
+    // bed: a gentle hop while walking, a bigger "boing" when stepping on (or landing), never enough to leave the bed
+    if (bounce > 0 && !this.skates && !this.fall && !this.pounce) {
+      if (prev !== type && prev !== undefined) { this._boing = 1; this.sound("boing", { vol: 1 }); G.events?.boing?.(this); }
+      const amp = (Math.abs(this.v) > 0.02 ? 0.011 : 0.0) * (bounce / 0.65) + 0.026 * (this._boing || 0) * bounce;
+      this._hopW = (this._hopW || 0) + (amp - (this._hopW || 0)) * (1 - Math.exp(-6 * dt));
+      const was = Math.sin(this._hopPh || 0);
+      this._hopPh = ((this._hopPh || 0) + dt * Math.PI * 2 * 2.1) % (Math.PI * 2);
+      if (was < 0 && Math.sin(this._hopPh) >= 0 && this._hopW > 0.006) this.sound("boing", { vol: clamp(this._hopW / 0.03, 0.2, 0.7) });
+      d.hop = Math.abs(Math.sin(this._hopPh)) * this._hopW;
+      this._boing = (this._boing || 0) * Math.exp(-2.2 * dt);
+    } else if (this._hopW > 1e-4 && !this.pounce) {
+      this._hopW *= Math.exp(-10 * dt); d.hop = Math.abs(Math.sin(this._hopPh || 0)) * this._hopW; if (this._hopW < 1e-4) { this._hopW = 0; d.hop = 0; }
+    }
+  }
+  /** room-to-room route (door waypoints) from here to p, using the house's rooms and doors when present */
+  _route(p) {
+    const W = this.G.world, A = W.anchors || {}, doors = A.doors;
+    if (!doors || !W.roomAt) return [p];
+    const r0 = W.roomAt(this.pos.x, this.pos.z), r1 = W.roomAt(p.x, p.z);
+    if (!r0 || !r1 || r0 === r1) return [p];
+    const links = doors.map(dr => ({ dr, rooms: DOOR_ROOMS[dr.id] })).filter(l => l.rooms);
+    // BFS over rooms
+    const prev = { [r0]: null }, q = [r0];
+    while (q.length) { const r = q.shift(); if (r === r1) break; for (const l of links) { const i = l.rooms.indexOf(r); if (i < 0) continue; const n = l.rooms[1 - i]; if (!(n in prev)) { prev[n] = { r, l }; q.push(n); } } }
+    if (!(r1 in prev)) return [p];
+    const steps = []; for (let r = r1; prev[r]; r = prev[r].r) steps.unshift({ from: prev[r].r, l: prev[r].l });
+    const pts = [];
+    for (const { from, l } of steps) {
+      const c = l.dr.center, cross = l.dr.axis === "x" ? [0, 1] : [1, 0];   // axis x: wall along x, cross in z
+      const side = (pt) => (pt[0] - c[0]) * cross[0] + (pt[1] - c[2]) * cross[1];
+      const fromC = (A.rooms && A.rooms[from] && A.rooms[from].center) || [this.pos.x, 0, this.pos.z];
+      const sgn = Math.sign(side([fromC[0], fromC[2]])) || -1;
+      pts.push(V(c[0] + cross[0] * 0.35 * sgn, c[1], c[2] + cross[1] * 0.35 * sgn), V(c[0] - cross[0] * 0.35 * sgn, c[1], c[2] - cross[1] * 0.35 * sgn));
+    }
+    pts.push(p); return pts;
+  }
   _pick(force) {
     const B = this.brain, r = this.rand();
-    B.t = 0; B.target = null; this.duck.sitTarget = false;
-    B.state = force || (r < 0.42 ? (this.G.customising ? "ball" : "follow") : r < 0.66 ? "wander" : r < 0.8 ? "toy" : r < 0.9 ? "sit" : "idle");
-    B.dur = { ball: 9 + this.rand() * 6, follow: 8 + this.rand() * 8, wander: 7 + this.rand() * 6, toy: 14, sit: 3 + this.rand() * 3, idle: 1.5 + this.rand() * 2 }[B.state];
+    B.t = 0; B.target = null; B.route = null; this.duck.sitTarget = false;
+    const roamOk = !this.G.customising && this.G.world.anchors && this.G.world.anchors.houseSpawnPoints && this.G.roam !== false;
+    B.state = force || (r < 0.3 ? (this.G.customising ? "ball" : "follow") : r < 0.42 ? (roamOk ? "roam" : "wander") : r < 0.66 ? "wander" : r < 0.8 ? "toy" : r < 0.9 ? "sit" : "idle");
+    B.dur = { roam: 40, ball: 9 + this.rand() * 6, follow: 8 + this.rand() * 8, wander: 7 + this.rand() * 6, toy: 14, sit: 3 + this.rand() * 3, idle: 1.5 + this.rand() * 2 }[B.state];
     if (B.state === "idle" && this.rand() < 0.5) this.emote(["nod", "look", "dance", "shake"][Math.floor(this.rand() * 4)]);
   }
   /** steer to a goal with separation from the other ducks and a whisker probe for obstacles */

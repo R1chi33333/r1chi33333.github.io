@@ -121,11 +121,14 @@ export class Football {
 
 // ================================================================ race
 export class Race {
-  constructor(G) { this.G = G; this.active = false; this.frozen = false; this.group = null; this.prog = new Map(); }
+  constructor(G) { this.G = G; this.active = false; this.frozen = false; this.group = null; this.prog = new Map(); this.track = null; }
+  /** the track in use: world.race (living room) unless setTrack() picked another one (e.g. the whole house) */
+  get R() { return this.track || this.G.world.race; }
+  setTrack(track) { if (this.active) this.stop(); this.track = track || null; this._cps = null; }
   get cps() {
     if (this._cps) return this._cps;
-    const R = this.G.world.race, raw = R.checkpoints.map(p => V(...p));
-    if (!R.builtIn) return (this._cps = raw);
+    const R = this.R, raw = R.checkpoints.map(p => V(...p));
+    if (!R.builtIn || R.noOffset) return (this._cps = raw);
     // the room's checkpoints are cones: aim beside them, on the outside of the loop
     const c = raw.reduce((a, p) => a.add(p), V()).multiplyScalar(1 / raw.length);
     return (this._cps = raw.map((p, i) => i === 0 ? p : p.clone().add(V(p.x - c.x, 0, p.z - c.z).normalize().multiplyScalar(0.16))));
@@ -133,7 +136,7 @@ export class Race {
   start() {
     const G = this.G; if (this.active) this.stop();
     this.active = true; this.frozen = true; this.countdown = 3.6; this.t = 0; this.finishOrder = [];
-    this.laps = this.G.world.race.laps || 2;
+    this.laps = this.R.laps || 2;
     this.group = new THREE.Group(); this.group.name = "race"; G.scene.add(this.group);
     const cps = this.cps; this.gates = [];
     cps.forEach((p, i) => {
@@ -141,14 +144,14 @@ export class Race {
       const nxt = cps[(i + 1) % cps.length], prv = cps[(i - 1 + cps.length) % cps.length];
       g.rotation.y = Math.atan2(nxt.x - prv.x, nxt.z - prv.z);
       const mat = glowMat(i === 0 ? "#30D158" : "#BF5AF2", 0.5);
-      const R = this.G.world.race, rr = R.radius ? R.radius[i] * 0.55 : 0.075;
+      const R = this.R, rr = R.radius ? R.radius[i] * 0.55 : 0.075;
       if (!R.builtIn) { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.003, 8, 64, Math.PI), mat); g.add(ring); }  // arch over the track
       const pad = new THREE.Mesh(new THREE.RingGeometry(rr * 0.82, rr, 64), mat.clone()); pad.material.opacity = 0.25; pad.rotation.x = -Math.PI / 2; pad.position.y = 0.0012; g.add(pad);
       g.traverse(o => { o.userData.lookNoContact = true; o.raycast = () => {}; });
       this.group.add(g); this.gates.push({ g, mat, pad });
     });
     // grid: line the ducks up behind the first gate
-    const c0 = cps[0], c1 = cps[1]; const sd = this.G.world.race.startDir; const dir = sd ? V(sd[0], 0, sd[2]).normalize() : V(c1.x - c0.x, 0, c1.z - c0.z).normalize(); const side = V(dir.z, 0, -dir.x);
+    const c0 = cps[0], c1 = cps[1]; const sd = this.R.startDir; const dir = sd ? V(sd[0], 0, sd[2]).normalize() : V(c1.x - c0.x, 0, c1.z - c0.z).normalize(); const side = V(dir.z, 0, -dir.x);
     const yaw = Math.atan2(dir.x, dir.z);
     G.agents.forEach((a, i) => {
       a.cancelTask(); a.releaseHeld(); a.duck.sitTarget = false;
@@ -188,7 +191,7 @@ export class Race {
       if (P.done) continue;
       P.time = this.t;
       const t = cps[P.next];
-      const rad = this.G.world.race.radius ? this.G.world.race.radius[P.next] * 0.8 : 0.08;
+      const rad = this.R.radius ? this.R.radius[P.next] * 0.8 : 0.08;
       if (Math.hypot(t.x - a.pos.x, t.z - a.pos.z) < rad) {
         if (P.next === 0) {
           const lapT = this.t - P.lapStart; P.best = P.best == null ? lapT : Math.min(P.best, lapT); P.lapStart = this.t;

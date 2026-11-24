@@ -87,5 +87,12 @@ export function adaptWorld(world) {
     workbench: A.workbench,
     addProp: (p) => world.addProp && world.addProp(p), removeProp: (p) => world.removeProp && world.removeProp(p),
     update: (dt) => world.update(dt), setWeights: (w) => world.setWeights(w),
+    // multi-room house (world.js / house.js): surfaces, focus for the wall cutaway, rooms
+    surfaceAt: world.surfaceAt ? (x, z, y) => world.surfaceAt(x, z, y) : () => ({ type: "wood", friction: 0.7, bounce: 0 }),
+    setFocus: (p) => world.setFocus && world.setFocus(p),
+    setCameraFree: (b) => world.setCameraFree && world.setCameraFree(b),
+    roomAt: (x, z) => (world.roomAt ? world.roomAt(x, z) : "living"),
+    drawCallsByRoom: () => (world.drawCallsByRoom ? world.drawCallsByRoom() : {}),
+    rooms: world.rooms, house: world.house, cull: world.cull || { enabled: false },
   };
 }
