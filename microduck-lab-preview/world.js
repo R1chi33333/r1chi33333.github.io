@@ -745,6 +745,8 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   const statics = [...batch.build(root, { name: "static" }), ...shell.build(root, { name: "shell", cast: false })];
   toonifyTree(root);   // every standard material in the room becomes banded toon shading
   statics.forEach(m => meshes.push(m));
+  // the other rooms' floors and furniture are pickable too (placing items, laser), but not walls/trim, so the cutaway doesn't block picks
+  for (const g of Object.values(house.groups || {})) g.traverse(m => { if (m.isMesh && m.material !== wallMat && m.material !== trimMat && !(m.userData && m.userData.lookFX)) meshes.push(m); });
 
   // ================================================================ PROPS
   const props = [];
