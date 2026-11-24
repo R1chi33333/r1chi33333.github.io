@@ -51,17 +51,19 @@ const INKC = "#1B1430";
 // ------------------------------------------------------------------ see-through walls (comic cutaway)
 // Wall fragments inside a capsule around the camera -> focus segment are cut away; a band of ink is kept at the
 // cut edge. Shared uniforms: world.js updates camera + focus each frame.
-export const CUT = { uCutCam: { value: new THREE.Vector3() }, uCutFocus: { value: new THREE.Vector3() }, uCutR: { value: 0.42 }, uCutOn: { value: 0 }, uCutTop: { value: 0 }, uCutInk: { value: new THREE.Color(INKC) } };
+export const CUT = { uCutCam: { value: new THREE.Vector3() }, uCutFocus: { value: new THREE.Vector3() }, uCutR: { value: 0.42 }, uCutOn: { value: 0 }, uCutTop: { value: 0 }, uCutNear: { value: 0.28 }, uCutInk: { value: new THREE.Color(INKC) } };
 export function cutaway(mat) {
+  if (mat.userData.cutaway) return mat; mat.userData.cutaway = true;
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = function (s, r) {
     if (prev) prev.call(this, s, r);
     Object.assign(s.uniforms, CUT);
     s.vertexShader = "varying vec3 vCutW;\n" + s.vertexShader.replace("#include <project_vertex>", "#include <project_vertex>\n vCutW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    s.fragmentShader = "varying vec3 vCutW; uniform vec3 uCutCam, uCutFocus, uCutInk; uniform float uCutR, uCutOn, uCutTop; float cutInk = 0.0;\n" + s.fragmentShader
+    s.fragmentShader = "varying vec3 vCutW; uniform vec3 uCutCam, uCutFocus, uCutInk; uniform float uCutR, uCutOn, uCutTop, uCutNear; float cutInk = 0.0;\n" + s.fragmentShader
       .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>
         if (uCutTop != 0.0) { if (vCutW.y > uCutTop) discard; cutInk = step(uCutTop - 0.03, vCutW.y); }   // dollhouse view: walls cut at a height, inked top edge
         if (uCutOn > 0.5) {
+          if (distance(vCutW, uCutCam) < uCutNear) discard;               // anything right in front of the lens (jambs, chair legs)
           vec3 ab = uCutFocus - uCutCam; float L2 = max(dot(ab, ab), 1e-4), L = sqrt(L2);
           float t = clamp(dot(vCutW - uCutCam, ab) / L2, 0.0, 1.0);
           float d = length(vCutW - (uCutCam + ab * t));

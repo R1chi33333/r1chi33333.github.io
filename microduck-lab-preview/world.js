@@ -744,6 +744,11 @@ export function buildWorld(scene, renderer, mats, opts = {}) {
   // ================================================================ build merged statics
   const statics = [...batch.build(root, { name: "static" }), ...shell.build(root, { name: "shell", cast: false })];
   toonifyTree(root);   // every standard material in the room becomes banded toon shading
+  // see-through: every static solid (walls, jambs, trim, furniture) is cut away between the camera and the duck and
+  // right in front of the lens; floors, rugs, tape and the outdoor ground are never cut
+  { const NOCUT = /floor|rug|tape|grass|lawn|stone|puddle|tile|dash|label|mat$|garage_mat|pitch|net|curtain/i;
+    root.traverse(o => { if (!o.isMesh || o.userData.lookFX || o.isInstancedMesh) return;
+      for (const m of [].concat(o.material)) if (m && (m.isMeshStandardMaterial) && !NOCUT.test(m.name || "") && !NOCUT.test(o.name || "")) cutaway(m); }); }
   statics.forEach(m => meshes.push(m));
   // the other rooms' floors and furniture are pickable too (placing items, laser), but not walls/trim, so the cutaway doesn't block picks
   for (const g of Object.values(house.groups || {})) g.traverse(m => { if (m.isMesh && m.material !== wallMat && m.material !== trimMat && !(m.userData && m.userData.lookFX)) meshes.push(m); });

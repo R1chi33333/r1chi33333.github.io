@@ -16,7 +16,7 @@ import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
 import { Reflector } from "three/addons/objects/Reflector.js";
-import { toCreasedNormals, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
+import { toCreasedNormals, mergeVertices, mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
@@ -222,6 +222,7 @@ const BLUR_FS = /* glsl */`
   }`;
 
 export function buildStage(scene, renderer, opts = {}) {
+  trackRendering(renderer);
   const quality = opts.quality || detectQuality();
   const hi = quality === "high";
   scene.background = null;
@@ -972,6 +973,126 @@ function addInk(mesh, kind) {
   return ln;
 }
 
+
+// ------------------------------------------------------------------ per-duck draw-call merge
+// Each duck's rigid meshes are merged per (bone, material) into proxy meshes parented to that bone, and its ink
+// lines per bone into one LineSegments2. The originals stay in the scene untouched (picking, ground probes,
+// X-ray ghosts, Garage part lists, skins), they are only skipped while the renderer draws (layers test below).
+// Any change to an original (material swap, part condition, Garage slide/scale) drops the proxies at once and
+// they are rebuilt after the rig has been stable for MERGE_SETTLE seconds. Proxy visibility follows the
+// originals' .visible every draw (X-ray, sensor-eye render, ink LOD), shadow casting follows their castShadow.
+let RENDERING = 0;
+// three r160 defines render() per instance (in the constructor), so the instance is wrapped
+export function trackRendering(renderer) {
+  if (!renderer || renderer.__duckMergePatched) return; const r = renderer.render;
+  renderer.render = function (s, c) { RENDERING++; try { return r.call(this, s, c); } finally { RENDERING--; } };
+  renderer.__duckMergePatched = true;
+}
+const MERGE_SETTLE = 0.6;
+function coverObject(o) {
+  if (o.userData.mergeCover) return;
+  const L = o.layers, test = L.test.bind(L);
+  o.userData.mergeCover = { on: false };
+  Object.defineProperty(o.userData, "mergeCover", { enumerable: false, writable: true, value: o.userData.mergeCover });
+  L.test = (x) => (RENDERING && o.userData.mergeCover.on ? false : test(x));
+}
+function rigSignature(list) {
+  let h = 0;
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i], k = i + 1, p = m.position, q = m.quaternion, sc = m.scale;
+    h += k * (m.material.id * 1.37 + (m.receiveShadow ? 7.1 : 0) + (m.parent ? m.parent.id * 0.71 : 0)
+      + p.x * 101 + p.y * 103 + p.z * 107 + q.x * 109 + q.y * 113 + q.z * 127 + q.w * 131 + sc.x * 137 + sc.y * 139 + sc.z * 149);
+  }
+  return h;
+}
+function mergeEligible(m) {
+  return m.isMesh && !m.isSkinnedMesh && !m.isInstancedMesh && m.parent && !m.userData.lookHidden && m.renderOrder === 0 && !Array.isArray(m.material)
+    && m.material && !m.material.vertexColors && m.geometry && m.geometry.attributes.position && m.userData.lookKind !== "highlight";
+}
+function buildDuckMerge(rig) {
+  const list = rig.meshes.filter(mergeEligible);
+  const groups = new Map();
+  for (const m of list) {
+    const key = m.parent.uuid + "|" + m.material.uuid + "|" + (m.receiveShadow ? 1 : 0);
+    let g = groups.get(key); if (!g) groups.set(key, g = { parent: m.parent, material: m.material, receive: m.receiveShadow, members: [] });
+    g.members.push(m);
+  }
+  const proxies = [];
+  const v4 = new THREE.Vector4();
+  for (const g of groups.values()) {
+    if (g.members.length < 2) continue;
+    const allIndexed = g.members.every(m => m.geometry.index);
+    const geos = g.members.map(m => {
+      m.updateMatrix();
+      let geo = allIndexed ? m.geometry.clone() : (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone());
+      for (const k of Object.keys(geo.attributes)) if (k !== "position" && k !== "normal" && k !== "uv") geo.deleteAttribute(k);
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      if (!geo.attributes.uv) geo.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+      geo.morphAttributes = {}; geo.clearGroups();
+      return geo.applyMatrix4(m.matrix);
+    });
+    let merged; try { merged = mergeGeometries(geos, false); } catch (e) { merged = null; }
+    geos.forEach(x => x.dispose());
+    if (!merged) continue;
+    merged.computeBoundingSphere();
+    const px = new THREE.Mesh(merged, g.material);
+    px.name = "merged_" + (g.members[0].name || "part"); px.userData.mergedProxy = true; px.raycast = () => {};
+    px.receiveShadow = g.receive; px.onBeforeRender = (r) => trackRendering(r);
+    const members = g.members;
+    Object.defineProperty(px, "castShadow", { get: () => members.some(m => m.castShadow), set: () => {}, configurable: true });
+    const t0 = px.layers.test.bind(px.layers);
+    px.layers.test = (x) => { for (const m of members) if (!m.visible) return false; return t0(x); };
+    g.parent.add(px); proxies.push(px);
+    for (const m of members) { coverObject(m); m.userData.mergeCover.on = true; }
+  }
+  // ink lines: one fat-line mesh per bone
+  const inkGroups = new Map();
+  for (const m of list) for (const c of m.children) if (c.userData.inkLine && c.geometry && c.geometry.attributes.instanceStart) {
+    let g = inkGroups.get(m.parent.uuid); if (!g) inkGroups.set(m.parent.uuid, g = { parent: m.parent, lines: [], material: c.material, onBR: c.onBeforeRender });
+    g.lines.push(c);
+  }
+  const M = new THREE.Matrix4(), P = new THREE.Vector3();
+  for (const g of inkGroups.values()) {
+    if (g.lines.length < 2) continue;
+    const pos = [];
+    for (const ln of g.lines) {
+      ln.updateMatrix(); ln.parent.updateMatrix(); M.multiplyMatrices(ln.parent.matrix, ln.matrix);
+      const a = ln.geometry.attributes.instanceStart, b = ln.geometry.attributes.instanceEnd;
+      for (let i = 0; i < a.count; i++) {
+        P.fromBufferAttribute(a, i).applyMatrix4(M); pos.push(P.x, P.y, P.z);
+        P.fromBufferAttribute(b, i).applyMatrix4(M); pos.push(P.x, P.y, P.z);
+      }
+    }
+    const geo = new LineSegmentsGeometry(); geo.setPositions(pos);
+    const px = new LineSegments2(geo, g.material);
+    px.name = "merged_ink"; px.userData.mergedProxy = true; px.userData[FX_LAYER_FLAG] = true; px.userData.inkProxy = true;
+    px.raycast = () => {}; px.castShadow = false; px.receiveShadow = false; px.renderOrder = 2; px.onBeforeRender = function (r, ...a) { trackRendering(r); return g.onBR.call(this, r, ...a); };
+    const lines = g.lines;
+    const t0 = px.layers.test.bind(px.layers);
+    px.layers.test = (x) => { for (const ln of lines) if (!ln.visible || !ln.parent.visible) return false; return t0(x); };
+    g.parent.add(px); proxies.push(px);
+    for (const ln of lines) { coverObject(ln); ln.userData.mergeCover.on = true; }
+  }
+  return { list, proxies, sig: rigSignature(list) };
+}
+function dropDuckMerge(rig) {
+  const st = rig._merge; if (!st || !st.built) return;
+  for (const px of st.built.proxies) { if (px.parent) px.parent.remove(px); px.geometry.dispose(); }
+  for (const m of st.built.list) { if (m.userData.mergeCover) m.userData.mergeCover.on = false; for (const c of m.children) if (c.userData.mergeCover) c.userData.mergeCover.on = false; }
+  st.built = null;
+}
+/** per-frame upkeep (called from rig.update): rebuild once stable, drop on any change */
+function updateDuckMerge(rig, dt) {
+  const st = rig._merge || (rig._merge = { built: null, sig: NaN, stable: 0, enabled: true });
+  if (!st.enabled) { dropDuckMerge(rig); return; }
+  const list = st.built ? st.built.list : rig.meshes.filter(mergeEligible);
+  const sig = rigSignature(list);
+  if (st.built) { if (sig !== st.built.sig || list.some(m => !mergeEligible(m))) { dropDuckMerge(rig); st.stable = 0; st.sig = NaN; } return; }
+  if (sig !== st.sig) { st.sig = sig; st.stable = 0; return; }
+  st.stable += dt;
+  if (st.stable >= MERGE_SETTLE) st.built = buildDuckMerge(rig);
+}
+
 /**
  * Assign look materials by node name; build X-ray ghosts, edge lines, scan plane and the Mind nebula.
  * Add `root` to the scene BEFORE calling (FX live in a sibling group that tracks world matrices).
@@ -988,6 +1109,7 @@ export function applyLook(root, M, opts = {}) {
 
   // characters animate on twos: register the duck's outer root (DuckBody wraps the model in duck_root > duck_tilt)
   { let r = root; while (r.parent && r.name !== "duck_root") r = r.parent; if (r.name === "duck_root" && opts.twos !== false) twos.register(r); }
+  const isDuck = opts.merge !== false && (() => { let r = root; while (r) { if (r.name === "duck_root") return true; r = r.parent; } return false; })();
   const fxGroup = new THREE.Group(); fxGroup.name = "look_fx"; fxGroup.userData[FX_LAYER_FLAG] = true;
   (opts.parent || root.parent || root).add(fxGroup);
   const fxParentIsRoot = !(opts.parent || root.parent);
@@ -1139,7 +1261,10 @@ export function applyLook(root, M, opts = {}) {
       uniforms.uLkScanY.value = THREE.MathUtils.lerp(scanRange[0], scanRange[1], u);
       scan.position.y = uniforms.uLkScanY.value;
       if (this.trackMotion) syncFX();
+      if (isDuck) updateDuckMerge(this, dt);
     },
+    /** draw-call merge of the duck's rigid meshes + ink (on by default for ducks); false restores the originals */
+    setMerge(on, now = false) { const st = this._merge || (this._merge = { built: null, sig: NaN, stable: 0, enabled: true }); st.enabled = !!on; if (!on) dropDuckMerge(this); else if (now && !st.built) st.built = buildDuckMerge(this); },
     /** set true if the GLB animates (joints move) so ghosts/edges follow every frame */
     trackMotion: false,
     syncFX,

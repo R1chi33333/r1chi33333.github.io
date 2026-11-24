@@ -257,7 +257,7 @@ const COMIC_SHADER = {
       vec3 n3 = normalize(cross(PR - PC, PC - PD)), n4 = normalize(cross(PC - PL, PU - PC));
       float cr = max(1.0 - dot(n1, n2), 1.0 - dot(n3, n4));
       float crease = smoothstep(0.14, 0.3, cr) * (1.0 - sil) * uCrease * (1.0 - step(0.99999, dC)) * (1.0 - anyDuck);
-      float ink = max(sil, crease * 0.75);
+      float ink = max(sil, crease * 0.75) * smoothstep(0.12, 0.22, zC);   // no giant ink slabs on geometry right at the lens
       // colour with slight CMYK misregistration
       vec2 mo = uMis * px;
       vec3 lin = vec3(texture2D(tDiffuse, vUv + mo).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - mo * vec2(0.7, -0.9)).b);
@@ -625,7 +625,7 @@ export function createComicFX({ camera, renderer, comic, container } = {}) {
       if (comic) {
         const u = comic.uniforms;
         if (speedAmt > 0) { const [x, y] = project(speedPos); u.uSpeedC.value.set(x / W, 1 - y / H); }
-        u.uSpeedAmt.value = this.reducedMotion ? 0 : speedAmt; u.uSpeedT.value = clock;
+        u.uSpeedAmt.value = this.reducedMotion ? speedAmt * 0.4 : speedAmt;   // reduced motion: fainter speed lines, never none (only the controlled duck drives them) u.uSpeedT.value = clock;
         u.uImpact.value = this.reducedMotion ? 0 : (impactT > 0 ? 0.85 : 0);
       }
       if (this._watch) this._watch(dt);
@@ -708,7 +708,7 @@ export function createComicFX({ camera, renderer, comic, container } = {}) {
           if (s.bonkAt > 0 && clock >= s.bonkAt) { s.bonkAt = -1; this.emit("bonk", p, { impact: isC ? 1 : 0, key: a.index, offsetY: 0.08 }); }
           if (a.fall && a.fall.kind === "edge" && isC) this.speed(p, 0.5);
           if (a.held && !s.held) this.emit("snap", (a.held.prop && a.held.prop.object && a.held.prop.object.position) || p, { offsetY: 0.06, key: a.index, cooldown: 0.4 });
-          if (s.fall && !a.fall && a.skates && sfx && !this.reducedMotion) for (let i = 0; i < 3; i++) sfx.glint(p.x, p.y + 0.02, p.z);
+          if (s.fall && !a.fall && a.skates && sfx && (isC || !this.reducedMotion)) for (let i = 0; i < (this.reducedMotion ? 1 : 3); i++) sfx.glint(p.x, p.y + 0.02, p.z);
           s.fall = a.fall; s.held = a.held;
           if (sfx && dt > 0) skateFX(a, s, dt, isC);
           const sp = a.skates && a.sv ? a.sv.length() : 0;
