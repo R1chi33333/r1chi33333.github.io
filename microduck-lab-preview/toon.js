@@ -655,8 +655,9 @@ export function createComicFX({ camera, renderer, comic, container } = {}) {
         let dy = a.yaw - k.yaw; dy -= Math.round(dy / 6.2832) * 6.2832; const yr = dy / dt; k.yaw = a.yaw;
         const slip = Math.abs(a.sv.x * fz - a.sv.z * fx);
         if (sp > k.peak || k.peakT > 2.2) { k.peak = sp; k.peakT = 0; } k.peakT += dt;
-        const far = CAMP.distanceToSquared(a.pos) > (phone ? 4 : 9) || (a.lod || 0) >= 2;
-        const rm = this.reducedMotion, rate = (phone ? 0.5 : 1) * (isC ? 1 : 0.6);
+        const far = !isC && (CAMP.distanceToSquared(a.pos) > (phone ? 4 : 9) || (a.lod || 0) >= 2);
+        // skate particles stay on for the controlled duck even with the OS reduced-motion setting (just fewer)
+        const rm = this.reducedMotion && !isC, rate = (phone ? 0.5 : 1) * (isC ? (this.reducedMotion ? 0.5 : 1) : 0.6);
         legs.left.soleNode.getWorldPosition(W0); legs.right.soleNode.getWorldPosition(W1);
         const y = Math.min(W0.y, W1.y);
         BACK.set(-fx, 0, -fz);
