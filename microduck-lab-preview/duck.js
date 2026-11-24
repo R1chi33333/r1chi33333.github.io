@@ -107,6 +107,7 @@ export class DuckBody {
     this.enabledIK = true;
     this.iters = 3;                       // IK iterations (lower for far-away ducks)
     this.sitTarget = false; this.sitW = 0; this.crouchTarget = false; this.crouchW = 0;
+    this.onSound = null;   // (kind, data) => void — foot plants, sit/crouch settle, fall hits, get-up (sfx.js)
     this.skating = false; this.skateLift = 0.022; this.skateW = 0; this.stroke = 0; this.strokeSide = 1; this.wobble = 0;
     this.emote = null; this.hop = 0; this.gazeYawOff = 0; this.gazePitchOff = 0;
     this.happyWiggle = 0;
@@ -317,8 +318,10 @@ export class DuckBody {
     // ---- gait clock
     const footErr = this._footError();
     // ---- poses: sit / crouch / skates / emotes
+    const sitWas = this.sitW, crouchWas = this.crouchW;
     this.sitW = damp(this.sitW, this.sitTarget ? 1 : 0, 3.5, dt);
     this.crouchW = damp(this.crouchW, this.crouchTarget ? 1 : 0, 7, dt);
+    if (this.onSound) { if (sitWas < 0.8 && this.sitW >= 0.8) this.onSound("sit", {}); if (crouchWas < 0.7 && this.crouchW >= 0.7) this.onSound("crouch", {}); }
     this.skateW = damp(this.skateW, this.skating ? 1 : 0, 8, dt);
     const em = this._emote(dt);
     const wantStep = !this.skating && this.sitW < 0.3 && (speed > 0.006 || Math.abs(this.yawRate) > 0.08 || footErr > 0.012);
@@ -393,7 +396,7 @@ export class DuckBody {
           F.pitch = Math.sin(Math.PI * u) * 0.12 * sp01 - (u > 0.85 ? (u - 0.85) * 0.4 : 0);
           F.s = u;
         } else {
-          if (!F.planted) { F.planted = true; F.pos.y = F.toY ?? F.pos.y; F.pitch = 0; F.justLanded = true; }
+          if (!F.planted) { F.planted = true; F.pos.y = F.toY ?? F.pos.y; F.pitch = 0; F.justLanded = true; this.onSound && this.onSound("plant", { side, pos: F.pos }); }
           F.pitch = 0;
           if (this.skateW <= 0.01 && F.pos.y > this.baseY + 0.008 && !this.stepping) F.pos.y = damp(F.pos.y, this.baseY, 10, dt);
         }
@@ -501,6 +504,7 @@ export class DuckBody {
     f.angle = a; f.phase = "tip"; f.pivot.set(0, 0, 0); f.angVel = 0; f.rest = a > Math.PI ? Math.PI * 2 - 1.3 : 1.3;
     if (a > Math.PI) { f.angle = a - Math.PI * 2; f.rest = -1.3; }
     f.landed = true;
+    this.onSound && this.onSound("fallHit", { strength: 1 });
   }
   get fallen() { return !!this.fall; }
   _poseFallMatrix() {
@@ -521,11 +525,12 @@ export class DuckBody {
       f.angVel += Math.sin(Math.max(ang, 0.05)) * 38 * dt * sgn;
       f.angle += f.angVel * dt;
       if (Math.abs(f.angle) >= Math.abs(f.rest)) {
+        if (Math.abs(f.angVel) > 1.2 && this.onSound) this.onSound("fallHit", { strength: Math.min(1.2, Math.abs(f.angVel) / 6) });
         f.angle = f.rest; f.angVel = -f.angVel * 0.22;
         if (Math.abs(f.angVel) < 0.3) { f.phase = "lie"; f.t = 0; f.angVel = 0; }
       }
     } else if (f.phase === "lie") {
-      if (f.t > (f.lieTime ?? 1.1)) { f.phase = "getup"; f.t = 0; f.getFrom = f.angle; }
+      if (f.t > (f.lieTime ?? 1.1)) { f.phase = "getup"; f.t = 0; f.getFrom = f.angle; this.onSound && this.onSound("getup", {}); }
     } else if (f.phase === "getup") {
       const u = clamp(f.t / 1.6, 0, 1);
       f.angle = f.getFrom * (1 - smoother(u));

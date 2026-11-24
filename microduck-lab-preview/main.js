@@ -12,6 +12,7 @@ import { createPhysics } from "./physics.js";
 import { Mind } from "./mind.js";
 import { Workshop } from "./garage.js";
 import { Voice, makeSerial, voiceParams } from "./voice.js";
+import { createSfx } from "./sfx.js";
 import { Agent } from "./agent.js";
 import { Football, Race } from "./games.js";
 import { createInventory } from "./inventory.js";
@@ -109,6 +110,8 @@ async function main() {
   const phys = await createPhysics(world);
   const mind = new Mind(world, scene);
   const voice = new Voice();
+  try { voice.muted = localStorage.getItem("microduck.muted") === "1"; } catch (e) { /* storage blocked */ }
+  const sfx = createSfx(voice, world, () => S.simTime);   // procedural footsteps, servos, skates, falls (through voice.master)
   progress(0.95);
 
   // ---------------------------------------------------------------- shared game context
@@ -122,6 +125,7 @@ async function main() {
     balls: [], football: null, race: null, rescueDelay: 1.4,
     now: () => S.simTime, controlled: () => ctlAgent, leader: () => ctlAgent,
     events: {}, hud: null,
+    sound: (kind, agent, data) => sfx.event(kind, agent, data),
   };
   const S = {
     mode: "play", layer: "surface", W: { surface: 1, xray: 0, mind: 0 },
@@ -151,6 +155,7 @@ async function main() {
     const { duck, rig } = makeDuck(skin);
     const a = new Agent(G, { duck, rig, serial: makeSerial(), skin, index: agents.length });
     agents.push(a);
+    duck.onSound = (kind, data) => sfx.event(kind, a, data);
     a.teleport(pos, yaw ?? Math.random() * Math.PI * 2);
     rig.setWeights(S.W);
     inv && inv.refresh();
@@ -222,7 +227,13 @@ async function main() {
   const help = $("help"); let helpTimer = setTimeout(() => help.classList.add("fade"), 12000);
   $("helpBtn").onclick = () => { help.classList.toggle("fade"); clearTimeout(helpTimer); helpTimer = setTimeout(() => help.classList.add("fade"), 15000); };
   $("infoBtn").onclick = () => $("credit").classList.toggle("open");
-  $("soundBtn").onclick = () => { voice.muted = !voice.muted; $("soundBtn").setAttribute("aria-pressed", String(!voice.muted)); $("soundWave").style.opacity = voice.muted ? 0 : 1; if (!voice.muted) voice.play("hello", { force: true }); };
+  const showMute = () => { $("soundBtn").setAttribute("aria-pressed", String(!voice.muted)); $("soundWave").style.opacity = voice.muted ? 0 : 1; };
+  $("soundBtn").onclick = () => {
+    voice.muted = !voice.muted; showMute(); voice.ensure();
+    try { localStorage.setItem("microduck.muted", voice.muted ? "1" : "0"); } catch (e) { /* storage blocked */ }
+    if (!voice.muted) voice.play("hello", { force: true });
+  };
+  showMute();
   $("safetyBtn").onclick = () => { mind.safety = !mind.safety; $("safetyBtn").setAttribute("aria-pressed", String(mind.safety)); toast(mind.safety ? "Safety reflex on" : "Safety reflex off", mind.safety ? "It will refuse to step off an edge." : "It will do what you say, even off an edge.", mind.safety ? "info" : "warn"); };
   $("intentBtn").onclick = () => setIntentMode(!S.intentMode);
   function setIntentMode(on) {
@@ -322,7 +333,7 @@ async function main() {
   const skatesWorn = () => agents.filter(a => a.skates).length;
   function toggleSkates(a) {
     if (a.skates) { skatePool.push(a.unequipSkates()); toast("Skates off", "", "info", 1200); }
-    else { a.equipSkates(newSkates()); if (a === ctlAgent) toast("Skates on!", "Push with W, steer with A/D, brake with S. Careful on the ramp.", "info", 3000); }
+    else { a.equipSkates(newSkates()); G.sound("clack", a); if (a === ctlAgent) toast("Skates on!", "Push with W, steer with A/D, brake with S. Careful on the ramp.", "info", 3000); }
     inv.refresh(); refreshMoves();
   }
 
@@ -592,8 +603,15 @@ async function main() {
 
   // ---------------------------------------------------------------- simulation step
   const DT = 1 / 60;
-  function controlledCommand(a, dt) {
-    const ki = keyInput();
+  // ---------------------------------------------------------------- players: input -> controlled duck
+  // One local player today. A player = an input source that yields { fwd, turn } each step, plus the agent it
+  // drives. controlledCommand() only sees that input object, never the keyboard/joystick directly.
+  // Multiplayer (not built): give each player its own input (split keys / gamepad / network messages) and its
+  // own agent; run controlledCommand per player in simStep; make `agent.controlled` per player; route actions
+  // (beak, moves) through the player instead of the global ctlAgent; and decide the camera (split screen,
+  // shared framing, or one camera per client online). Online would also need an authoritative sim host.
+  const players = [{ id: 0, input: { read: keyInput }, get agent() { return ctlAgent; } }];
+  function controlledCommand(a, ki, dt) {
     const moving = Math.abs(ki.fwd) > 0.01 || Math.abs(ki.turn) > 0.01;
     if (S.mode === "garage" || S.customising || a.fall) return { v: 0, w: 0 };
     if (G.race && G.race.active && G.race.frozen) return { v: 0, w: 0 };
@@ -619,7 +637,7 @@ async function main() {
     // LOD by distance to the camera
     for (const a of agents) { const d = a.controlled ? 0 : a.pos.distanceTo(camera.position); a.lod = a.controlled ? 0 : d > 1.9 ? 2 : d > 1.1 ? 1 : 0; }
     // commands
-    const cmdC = controlledCommand(C, dt);
+    const cmdC = controlledCommand(C, players[0].input.read(), dt);
     for (const a of agents) {
       if (a === C) {
         a.step(dt, cmdC, (cmd) => {
@@ -662,6 +680,7 @@ async function main() {
     if (S.customising) customiseTick(dt);
     if (S.pendingAsk && S.simTime >= S.pendingAsk.at) { const l = S.pendingAsk.label; S.pendingAsk = null; S.garageBusy = false; refreshParts(); voice.play("happy", { force: true }); toast("New part fitted", l, "info", 1800); }
     workshop.update(dt);
+    sfx.update(dt, agents, camera);
     if (S.simTime - S.lastInputAt > 16 && S.simTime - (S.lastIdleChirp || 0) > 18) { S.lastIdleChirp = S.simTime; C.chirp("curious"); }
   }
 
@@ -988,6 +1007,7 @@ async function main() {
     showDragIcon: (key, wx, wz) => { const p = V(wx, world.groundHeightAt(wx, wz, H), wz); const [x, y] = project(p); let el = document.querySelector(".drag-ico"); if (!el) { el = document.createElement("div"); el.className = "drag-ico"; document.body.appendChild(el); } el.innerHTML = items.find(i => i.key === key).icon; el.style.transform = `translate(${x}px, ${y}px)`; },
     selectItem: (k) => inv.select(k), clickAt: (x, y) => click(x, y), project: (x, y, z) => project(V(x, y, z)),
     selectPart: (id) => selectPart(workshop.parts.find(p => p.id === id)), replaceSelected,
+    sfx: { audio: () => voice.ctx ? voice.ctx.state + " t=" + voice.ctx.currentTime.toFixed(2) : "none", counts: sfx.counts, reset: () => sfx.reset(), surfaceAt: (x, y, z) => sfx.surfaceAt(V(x, y, z)) },
     custom: { cam: CZCAM, stageGap: () => { const w = world.workbench.position; return Math.min(...agents.filter(a => a !== ctlAgent).map(a => Math.hypot(a.pos.x - w[0], a.pos.z - w[2]))); }, enter: () => enterCustomise(), set: (c) => { customiser.set(c); applyChoice(ctlAgent, customiser.choice); }, randomise: () => customiser.randomise(), go: () => customiser.go(), get choice() { return customiser.choice; }, voices: VOICES },
     toast, skin: (n, t) => workshop.skin(n, t),
     safety: (on) => { mind.safety = on; $("safetyBtn").setAttribute("aria-pressed", String(on)); },

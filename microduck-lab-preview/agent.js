@@ -56,6 +56,8 @@ export class Agent {
   }
 
   // ------------------------------------------------------------------ skates
+  /** fire a one-shot sound event (sfx.js wires G.sound) */
+  sound(kind, data) { this.G.sound && this.G.sound(kind, this, data || {}); }
   equipSkates(skates) {
     if (this.skates) return false;
     this.skates = skates;
@@ -375,7 +377,7 @@ export class Agent {
     const f = this.fwd;
     const pushing = F.v > 0.02;
     if (pushing) {
-      d.stroke = (d.stroke + S.strokeHz * dt) % 1; if (d.stroke < S.strokeHz * dt) { d.strokeSide *= -1; }
+      d.stroke = (d.stroke + S.strokeHz * dt) % 1; if (d.stroke < S.strokeHz * dt) { d.strokeSide *= -1; this.sound("push", { vol: clamp(F.v / GAIT.maxSpeed, 0.4, 1) }); }
       const phase = Math.max(0, Math.sin(d.stroke * Math.PI * 2));
       this.sv.addScaledVector(f, S.accel * (F.v / GAIT.maxSpeed) * (0.4 + phase) * dt);
     } else d.stroke = Math.max(0, d.stroke - dt);
@@ -400,6 +402,8 @@ export class Agent {
     const slip = Math.abs(this.sv.clone().cross(f).y);
     const wob = clamp((sp - 0.28) / 0.14, 0, 1) * 0.7 + slip * 2.2 + slope * 2.5;
     d.wobble = lerp(d.wobble, clamp(wob, 0, 1.2), 1 - Math.exp(-3 * dt));
+    // wheels clack when they drop onto a lower surface (step, ramp edge) at speed
+    const gy = this.pos.y; if (this._skGy !== undefined && this._skGy - gy > 0.006 && sp > 0.08) this.sound("clack"); this._skGy = gy;
     if (d.wobble > 0.82 && this.rand() < dt * 2.2) this.tipOver(V().crossVectors(UP, f).multiplyScalar(this.rand() < 0.5 ? 1 : -1), "skates");
   }
 

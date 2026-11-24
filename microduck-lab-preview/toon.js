@@ -161,7 +161,7 @@ export function toonifyTree(root, opts = {}) {
 // Character roots register here. Between 12 fps ticks the registered hierarchies are drawn with the pose
 // captured at the last tick, while the simulation keeps the live pose (restored right after rendering).
 export const twos = {
-  enabled: true, fps: 12, stepRoot: false, props: false,
+  enabled: false, fps: 12, stepRoot: false, props: false,   // off by default: full-frame-rate animation (set true for the stepped look)
   roots: new Set(), _acc: 0, _tick: true,
   register(root) { if (root) this.roots.add(root); return root; },
   unregister(root) { this.roots.delete(root); },
@@ -346,6 +346,186 @@ export function setupComicPost(renderer, scene, camera, opts = {}) {
   };
 }
 
+// ================================================================== skate FX: hand-drawn comic smoke, bolts, sparks, skids
+// Original procedural shapes (canvas), drawn as camera-facing instanced quads in the 3D scene: one draw call for
+// all particles, one for all skid marks. Fixed pools, no per-frame allocation. Driven from duck state in fx.watch().
+const SFX_CELLS = 4;   // atlas grid 4 x 2
+function sfxAtlas() {
+  const C = 128, cv = document.createElement("canvas"); cv.width = C * 4; cv.height = C * 2;
+  const g = cv.getContext("2d"); const INKC = "#1B1430";
+  let r = 7; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
+  const cell = (i, fn) => { g.save(); g.translate((i % 4) * C, Math.floor(i / 4) * C); g.beginPath(); g.rect(0, 0, C, C); g.clip(); fn(); g.restore(); };
+  // billowy puff: union of circles, ink outline drawn as fat circles underneath, darker inner shading blob
+  const puff = (n, rad) => () => {
+    const bl = []; for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + rnd() * 0.5, d = rad * (0.42 + rnd() * 0.12); bl.push([64 + Math.cos(a) * d, 66 + Math.sin(a) * d * 0.85, rad * (0.38 + rnd() * 0.16)]); }
+    bl.push([64, 66, rad * 0.55]);
+    g.fillStyle = INKC; for (const [x, y, q] of bl) { g.beginPath(); g.arc(x, y, q + 6, 0, 7); g.fill(); }
+    g.fillStyle = "#F3E6CC"; for (const [x, y, q] of bl) { g.beginPath(); g.arc(x, y, q, 0, 7); g.fill(); }
+    g.save(); g.beginPath(); for (const [x, y, q] of bl) { g.moveTo(x + q, y); g.arc(x, y, q, 0, 7); } g.clip();
+    g.fillStyle = "#CDB894"; for (const [x, y, q] of bl) { g.beginPath(); g.arc(x + q * 0.35, y + q * 0.45, q * 0.72, 0, 7); g.fill(); }
+    g.fillStyle = "#FFFBF0"; g.beginPath(); g.arc(64 - rad * 0.32, 66 - rad * 0.36, rad * 0.2, 0, 7); g.fill();
+    g.restore();
+  };
+  cell(0, puff(7, 40)); cell(1, puff(6, 36)); cell(2, puff(5, 30));
+  // spark burst: jagged star, yellow with white core and ink edge
+  cell(3, () => {
+    const star = (R, Ri, n, fill, lw) => { g.beginPath(); for (let k = 0; k < n * 2; k++) { const a = k / (n * 2) * Math.PI * 2, rr = (k % 2 ? Ri : R) * (0.85 + rnd() * 0.3); g.lineTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr); } g.closePath();
+      if (lw) { g.lineWidth = lw; g.lineJoin = "miter"; g.strokeStyle = INKC; g.stroke(); } g.fillStyle = fill; g.fill(); };
+    star(54, 22, 9, "#FFD23F", 9); star(26, 11, 7, "#FFFFFF", 0);
+  });
+  // 4-point glint
+  cell(4, () => {
+    const gl = (R, w, fill, lw) => { g.beginPath(); for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 - Math.PI / 2, rr = k % 2 ? w : R; g.lineTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr); } g.closePath();
+      if (lw) { g.lineWidth = lw; g.strokeStyle = INKC; g.lineJoin = "round"; g.stroke(); } g.fillStyle = fill; g.fill(); };
+    gl(58, 13, "#FFFFFF", 8); gl(30, 7, "#FFE98A", 0);
+  });
+  // zig-zag bolts (pointing +x): pale gold with ink outline
+  const bolt = (pts) => () => {
+    const P = pts.map(([x, y]) => [x * 128, y * 128]);
+    g.lineJoin = "miter"; g.lineCap = "butt";
+    const path = () => { g.beginPath(); P.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+    path(); g.lineWidth = 9; g.strokeStyle = INKC; g.stroke(); g.fillStyle = "#FFE45C"; g.fill();
+  };
+  cell(5, bolt([[0.04, 0.52], [0.36, 0.3], [0.34, 0.47], [0.66, 0.26], [0.62, 0.44], [0.97, 0.38], [0.6, 0.62], [0.63, 0.5], [0.33, 0.72], [0.36, 0.56]]));
+  cell(6, bolt([[0.03, 0.45], [0.3, 0.62], [0.33, 0.44], [0.6, 0.66], [0.6, 0.48], [0.97, 0.58], [0.58, 0.32], [0.57, 0.5], [0.31, 0.3], [0.29, 0.47]]));
+  // speed streak: tapered stroke, ink with a white core
+  cell(7, () => {
+    const st = (h, fill) => { g.beginPath(); g.moveTo(4, 64); g.quadraticCurveTo(64, 64 - h, 124, 64 - h * 0.25); g.lineTo(124, 64 + h * 0.25); g.quadraticCurveTo(64, 64 + h, 4, 64); g.fillStyle = fill; g.fill(); };
+    st(16, INKC); st(7, "#FFFFFF");
+  });
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.generateMipmaps = true;
+  return t;
+}
+const SFX_VS = /* glsl */`
+  attribute vec3 aPos; attribute vec4 aP; attribute vec3 aDir;   // aP: size (m), rotation, atlas cell, unused
+  varying vec2 vUv;
+  void main(){
+    vec4 mv = viewMatrix * vec4(aPos, 1.0);
+    float ang = aP.y, st = 1.0;
+    float dl = length(aDir);
+    if (dl > 1e-4) { vec4 m2 = viewMatrix * vec4(aPos + aDir / dl * 0.05, 1.0); vec2 d = m2.xy / -m2.z - mv.xy / -mv.z; ang += atan(d.y, d.x); st = max(1.0, dl); }
+    vec2 c = position.xy * vec2(st, 1.0) * aP.x;
+    float s = sin(ang), co = cos(ang);
+    mv.xy += vec2(co * c.x - s * c.y, s * c.x + co * c.y);
+    gl_Position = projectionMatrix * mv;
+    float cell = aP.z;
+    vUv = vec2((mod(cell, 4.0) + uv.x) * 0.25, (1.0 - floor(cell / 4.0)) * 0.5 + uv.y * 0.5 - 0.0);
+  }`;
+const SFX_FS = /* glsl */`
+  uniform sampler2D map; varying vec2 vUv;
+  void main(){ vec4 t = texture2D(map, vUv); if (t.a < 0.5) discard; gl_FragColor = vec4(t.rgb, 1.0); }`;
+const SKID_VS = /* glsl */`
+  attribute float aBirth; attribute float aSeed; uniform float uTime, uLife; varying float vA; varying vec2 vUv; varying float vSeed;
+  void main(){ vUv = uv; vSeed = aSeed; float age = uTime - aBirth; vA = (1.0 - smoothstep(uLife * 0.55, uLife, age)) * step(0.0, age);
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0); }`;
+const SKID_FS = /* glsl */`
+  uniform vec3 uInk; varying float vA; varying vec2 vUv; varying float vSeed;
+  float h(float x){ return fract(sin(x * 91.7 + vSeed * 13.1) * 43758.5); }
+  void main(){ float e = abs(vUv.y - 0.5) * 2.0; float rough = 0.72 + 0.28 * h(floor(vUv.x * 6.0));
+    if (e > rough || vA < 0.01) discard; gl_FragColor = vec4(uInk, 0.85 * vA); }`;
+
+export function createSkateFX(scene, opts = {}) {
+  const phone = !!opts.phone;
+  const MAX = phone ? 90 : 240, SKIDS = phone ? 120 : 360, SKID_LIFE = 4.0;
+  const tex = sfxAtlas();
+  // ---- particles
+  const base = new THREE.PlaneGeometry(1, 1);
+  const geo = new THREE.InstancedBufferGeometry(); geo.index = base.index; geo.attributes.position = base.attributes.position; geo.attributes.uv = base.attributes.uv;
+  const aPos = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3), aP = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 4), 4), aDir = new THREE.InstancedBufferAttribute(new Float32Array(MAX * 3), 3);
+  for (const a of [aPos, aP, aDir]) a.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute("aPos", aPos); geo.setAttribute("aP", aP); geo.setAttribute("aDir", aDir); geo.instanceCount = 0;
+  const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: tex } }, vertexShader: SFX_VS, fragmentShader: SFX_FS, depthWrite: false, depthTest: true });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 20; mesh.name = "skate_fx";
+  mesh.userData.lookFX = true; mesh.raycast = () => {}; mesh.castShadow = false; mesh.receiveShadow = false;
+  scene.add(mesh);
+  // particle state (struct of arrays)
+  const P = { x: new Float32Array(MAX * 3), v: new Float32Array(MAX * 3), d: new Float32Array(MAX * 3), age: new Float32Array(MAX), life: new Float32Array(MAX),
+    s0: new Float32Array(MAX), s1: new Float32Array(MAX), rot: new Float32Array(MAX), rv: new Float32Array(MAX), cell: new Uint8Array(MAX), kind: new Uint8Array(MAX), stretch: new Float32Array(MAX) };
+  const P_KEYS = ["age", "life", "s0", "s1", "rot", "rv", "cell", "kind", "stretch"];
+  let n = 0;
+  let seed = 12345; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  // kinds: 0 smoke, 1 spark, 2 glint, 3 bolt, 4 streak
+  function spawn(kind, x, y, z, vx, vy, vz, size, life, dir) {
+    if (n >= MAX) return -1;
+    const i = n++, k = i * 3;
+    P.x[k] = x; P.x[k + 1] = y; P.x[k + 2] = z; P.v[k] = vx; P.v[k + 1] = vy; P.v[k + 2] = vz;
+    P.d[k] = dir ? dir.x : 0; P.d[k + 1] = dir ? dir.y : 0; P.d[k + 2] = dir ? dir.z : 0;
+    P.age[i] = 0; P.life[i] = life; P.kind[i] = kind; P.s0[i] = size; P.rot[i] = (rnd() - 0.5) * 6.28; P.rv[i] = (rnd() - 0.5) * 3; P.stretch[i] = 1;
+    P.cell[i] = kind === 0 ? Math.floor(rnd() * 3) : kind === 1 ? 3 : kind === 2 ? 4 : kind === 3 ? 5 + (rnd() < 0.5 ? 1 : 0) : 7;
+    if (kind === 3 || kind === 4) { P.rot[i] = kind === 3 ? (rnd() - 0.5) * 0.5 : 0; P.rv[i] = 0; }
+    if (kind === 2) P.rot[i] = 0, P.rv[i] = 0;
+    return i;
+  }
+  function kill(i) {
+    const j = --n; if (i === j) return;
+    for (const key of P_KEYS) P[key][i] = P[key][j];
+    for (let a = 0; a < 3; a++) { P.x[i * 3 + a] = P.x[j * 3 + a]; P.v[i * 3 + a] = P.v[j * 3 + a]; P.d[i * 3 + a] = P.d[j * 3 + a]; }
+  }
+  // ---- skid marks: ring buffer of flat floor quads
+  const sg = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const aBirth = new THREE.InstancedBufferAttribute(new Float32Array(SKIDS).fill(-99), 1), aSeed = new THREE.InstancedBufferAttribute(new Float32Array(SKIDS), 1);
+  sg.setAttribute("aBirth", aBirth); sg.setAttribute("aSeed", aSeed);
+  const smat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uLife: { value: SKID_LIFE }, uInk: { value: new THREE.Color("#1B1430") } }, vertexShader: SKID_VS, fragmentShader: SKID_FS,
+    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });   // keeps the comic mask alpha
+  const skids = new THREE.InstancedMesh(sg, smat, SKIDS); skids.frustumCulled = false; skids.name = "skate_skids"; skids.renderOrder = 1;
+  skids.userData.lookFX = true; skids.raycast = () => {}; skids.castShadow = false; skids.receiveShadow = false;
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), SV = new THREE.Vector3(), PV = new THREE.Vector3(), YA = new THREE.Vector3(0, 1, 0);
+  M4.makeScale(0, 0, 0); for (let i = 0; i < SKIDS; i++) skids.setMatrixAt(i, M4);
+  scene.add(skids);
+  let sk = 0, time = 0;
+  function skid(ax, az, bx, bz, y, w) {
+    const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return;
+    PV.set((ax + bx) / 2, y, (az + bz) / 2); Q.setFromAxisAngle(YA, Math.atan2(-dz, dx)); SV.set(L + w * 0.6, 1, w);
+    M4.compose(PV, Q, SV); skids.setMatrixAt(sk, M4); aBirth.array[sk] = time; aSeed.array[sk] = rnd();
+    sk = (sk + 1) % SKIDS; skids.instanceMatrix.needsUpdate = true; aBirth.needsUpdate = true; aSeed.needsUpdate = true;
+  }
+  const api = {
+    phone, reducedMotion: false, mesh, skids,
+    get count() { return n; },
+    smoke(x, y, z, dx, dz, s = 1) { // dx,dz: direction to drift (backwards along travel)
+      const sz = (0.05 + rnd() * 0.035) * s;
+      const i = spawn(0, x + (rnd() - 0.5) * 0.01, y + 0.008, z + (rnd() - 0.5) * 0.01, dx * (0.12 + rnd() * 0.1) + (rnd() - 0.5) * 0.06, 0.05 + rnd() * 0.06, dz * (0.12 + rnd() * 0.1) + (rnd() - 0.5) * 0.06, sz, 0.4 + rnd() * 0.4);
+      return i;
+    },
+    spark(x, y, z, s = 1) { const a = rnd() * 6.28, sp = 0.25 + rnd() * 0.45; return spawn(1, x, y + 0.01, z, Math.cos(a) * sp, 0.25 + rnd() * 0.5, Math.sin(a) * sp, (0.024 + rnd() * 0.018) * s, 0.25 + rnd() * 0.2); },
+    glint(x, y, z, s = 1) { return spawn(2, x + (rnd() - 0.5) * 0.05, y + 0.02 + rnd() * 0.06, z + (rnd() - 0.5) * 0.05, 0, 0.02, 0, (0.045 + rnd() * 0.03) * s, 0.32 + rnd() * 0.14); },
+    bolt(x, y, z, dir, s = 1) { const i = spawn(3, x, y, z, dir.x * 0.1, 0.02, dir.z * 0.1, (0.07 + rnd() * 0.04) * s, 0.18 + rnd() * 0.12, dir); if (i >= 0) P.stretch[i] = 1.6 + rnd() * 0.6; return i; },
+    streak(x, y, z, dir, s = 1) { const i = spawn(4, x, y, z, -dir.x * 0.05, 0, -dir.z * 0.05, 0.024 * s, 0.14 + rnd() * 0.08, dir); if (i >= 0) P.stretch[i] = 4 + rnd() * 2; return i; },
+    skid,
+    update(dt) {
+      time += dt; smat.uniforms.uTime.value = time;
+      for (let i = n - 1; i >= 0; i--) {
+        P.age[i] += dt; if (P.age[i] >= P.life[i]) { kill(i); continue; }
+        const k = i * 3, kind = P.kind[i];
+        const drag = kind === 0 ? Math.exp(-2.2 * dt) : 1;
+        if (kind === 1) P.v[k + 1] -= 2.2 * dt;
+        P.v[k] *= drag; P.v[k + 1] *= drag; P.v[k + 2] *= drag;
+        P.x[k] += P.v[k] * dt; P.x[k + 1] += P.v[k + 1] * dt; P.x[k + 2] += P.v[k + 2] * dt;
+        P.rot[i] += P.rv[i] * dt;
+      }
+      // write instance data
+      const ap = aPos.array, apP = aP.array, ad = aDir.array;
+      for (let i = 0; i < n; i++) {
+        const k = i * 3, t = P.age[i] / P.life[i], kind = P.kind[i];
+        let sc;
+        if (kind === 0) sc = t < 0.18 ? 0.35 + 0.65 * (t / 0.18) * (1.25 - 0.25 * t / 0.18) : t < 0.8 ? 1 + 0.35 * (t - 0.18) / 0.62 : (1.35 + (t - 0.8) * 1.5) * (1 - Math.pow((t - 0.8) / 0.2, 2));   // pop: swell then vanish
+        else if (kind === 1) sc = 1 - t * t;
+        else if (kind === 2) sc = Math.sin(Math.PI * Math.min(1, t * 1.1));
+        else if (kind === 3) sc = (Math.floor(P.age[i] * 30) % 2 ? 0.85 : 1.1) * (1 - t * 0.4);
+        else sc = 1 - t;
+        ap[k] = P.x[k]; ap[k + 1] = P.x[k + 1]; ap[k + 2] = P.x[k + 2];
+        apP[i * 4] = P.s0[i] * Math.max(0, sc); apP[i * 4 + 1] = P.rot[i]; apP[i * 4 + 2] = P.cell[i]; apP[i * 4 + 3] = 0;
+        const st = P.stretch[i]; ad[k] = P.d[k] * st; ad[k + 1] = P.d[k + 1] * st; ad[k + 2] = P.d[k + 2] * st;
+      }
+      geo.instanceCount = n;
+      if (n) { aPos.needsUpdate = true; aP.needsUpdate = true; aDir.needsUpdate = true; }
+    },
+    clear() { n = 0; geo.instanceCount = 0; aBirth.array.fill(-99); aBirth.needsUpdate = true; },
+  };
+  return api;
+}
+
 // ================================================================== comic FX: stickers, speed lines, impact frames
 const STICKERS = {
   bonk: { text: "BONK!", fill: "#FFD23F", ink: "#FF3E6C", burst: "#FFFFFF", size: 1.0, rot: -12, spikes: 13 },
@@ -447,12 +627,73 @@ export function createComicFX({ camera, renderer, comic, container } = {}) {
         u.uImpact.value = this.reducedMotion ? 0 : (impactT > 0 ? 0.85 : 0);
       }
       if (this._watch) this._watch(dt);
+      if (this.skate) { this.skate.reducedMotion = this.reducedMotion; this.skate.update(dt); }
     },
     /** auto FX from game state: falls (WHEE!/BONK!), beak grabs (SNAP!), fast skating (ZOOM + speed lines), goals (GOAL!) */
     watch(agents, G, getControlled) {
       const st = new WeakMap(); let lastGoals = 0;
+      const phone = typeof matchMedia !== "undefined" && matchMedia("(max-width: 720px), (pointer: coarse)").matches;
+      const W0 = new THREE.Vector3(), W1 = new THREE.Vector3(), DIR = new THREE.Vector3(), BACK = new THREE.Vector3(), CAMP = new THREE.Vector3();
+      const skidWheel = (Wp, last, on, y) => {
+        if (!on) { last[0] = NaN; return; }
+        if (Number.isNaN(last[0])) { last[0] = 1; last[1] = Wp.x; last[2] = Wp.z; return; }
+        if (Math.hypot(Wp.x - last[1], Wp.z - last[2]) > 0.008) { this.skate.skid(last[1], last[2], Wp.x, Wp.z, y + 0.0015, 0.012 + 0.006 * Math.random()); last[1] = Wp.x; last[2] = Wp.z; }
+      };
+      // per-duck skate state -> smoke / bolts / sparks / glints / skids / streaks
+      const skateFX = (a, s, dt, isC) => {
+        const sfx = this.skate;
+        const legs = a.duck && a.duck.legs;
+        if (!a.skates || a.fall || !legs || !legs.left) { s.sk = null; return; }
+        const k = s.sk || (s.sk = { sp: 0, yaw: a.yaw, px: a.pos.x, pz: a.pos.z, brakeT: 0, peak: 0, peakT: 9, acc: 0, smokeAcc: 0, boltAcc: 0, streakAcc: 0, lw: [NaN, 0, 0], rw: [NaN, 0, 0], stopped: true });
+        // teleports / respawns: reset
+        if (Math.hypot(a.pos.x - k.px, a.pos.z - k.pz) > 0.2) { k.sp = a.sv.length(); k.yaw = a.yaw; k.lw[0] = k.rw[0] = NaN; }
+        k.px = a.pos.x; k.pz = a.pos.z;
+        const sp = a.sv.length(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+        const acc = (sp - k.sp) / dt; k.acc += (acc - k.acc) * Math.min(1, dt * 12); k.sp = sp;
+        let dy = a.yaw - k.yaw; dy -= Math.round(dy / 6.2832) * 6.2832; const yr = dy / dt; k.yaw = a.yaw;
+        const slip = Math.abs(a.sv.x * fz - a.sv.z * fx);
+        if (sp > k.peak || k.peakT > 2.2) { k.peak = sp; k.peakT = 0; } k.peakT += dt;
+        const far = CAMP.distanceToSquared(a.pos) > (phone ? 4 : 9) || (a.lod || 0) >= 2;
+        const rm = this.reducedMotion, rate = (phone ? 0.5 : 1) * (isC ? 1 : 0.6);
+        legs.left.soleNode.getWorldPosition(W0); legs.right.soleNode.getWorldPosition(W1);
+        const y = Math.min(W0.y, W1.y);
+        BACK.set(-fx, 0, -fz);
+        const drifting = sp > 0.12 && (slip > 0.045 || Math.abs(yr) > 1.5);
+        const braking = sp > 0.06 && k.acc < -0.22;
+        const pushing = k.acc > 0.1 && sp > 0.04;
+        // skid marks (floor decals), also in reduced motion
+        const skidOn = drifting || (braking && sp > 0.1);
+        skidWheel(W0, k.lw, skidOn && !far, y); skidWheel(W1, k.rw, skidOn && !far, y);
+        if (rm || far) return;
+        // smoke: push-offs, acceleration, hard braking, drifting
+        const smokeRate = (drifting ? 26 : braking ? 20 : pushing ? 12 : sp > 0.3 ? 7 : 0) * rate;
+        k.smokeAcc += smokeRate * dt;
+        while (k.smokeAcc >= 1) { k.smokeAcc -= 1; const W = Math.random() < 0.5 ? W0 : W1; sfx.smoke(W.x, y, W.z, BACK.x, BACK.z, drifting ? 1.25 : 1); }
+        // zig-zag energy bolts: speed bursts and sharp turns
+        const burst = (k.acc > 0.2 && sp > 0.2) || (Math.abs(yr) > 1.8 && sp > 0.15) || drifting;
+        k.boltAcc += (burst ? 9 : sp > 0.34 ? 3 : 0) * rate * dt;
+        while (k.boltAcc >= 1) { k.boltAcc -= 1; const side = Math.random() < 0.5 ? 1 : -1;
+          DIR.set(-fx + fz * side * 0.5, 0.15 + Math.random() * 0.3, -fz - fx * side * 0.5).normalize();
+          sfx.bolt(a.pos.x - fz * side * 0.05 + BACK.x * 0.03, y + 0.05 + Math.random() * 0.08, a.pos.z + fx * side * 0.05 + BACK.z * 0.03, DIR); }
+        // speed streaks behind the wheels
+        k.streakAcc += (sp > 0.25 ? (sp - 0.2) * 110 : 0) * rate * dt;
+        DIR.set(fx, 0, fz);
+        while (k.streakAcc >= 1) { k.streakAcc -= 1; const W = Math.random() < 0.5 ? W0 : W1; sfx.streak(W.x + BACK.x * 0.05, y + 0.01 + Math.random() * 0.02, W.z + BACK.z * 0.05, DIR); }
+        // sparks while braking hard, plus a glint burst when a fast run comes to a stop
+        if (braking && Math.random() < dt * 25 * rate) { const W = Math.random() < 0.5 ? W0 : W1; sfx.spark(W.x, y, W.z); }
+        if (sp < 0.08 && k.peak > 0.2 && k.peakT < 2.2 && !k.stopped) {
+          k.stopped = true; k.peak = 0;
+          for (let i = 0; i < 6 * rate + 2; i++) { const W = i % 2 ? W0 : W1; sfx.spark(W.x, y, W.z, 1.2); }
+          for (let i = 0; i < 4; i++) sfx.glint(a.pos.x, y + 0.03, a.pos.z, 1.3);
+          for (let i = 0; i < 4 * rate + 1; i++) { const W = i % 2 ? W0 : W1; sfx.smoke(W.x, y, W.z, fx, fz, 1.1); }
+          if (isC) this.impact(0.5);
+        }
+        if (sp > 0.15) k.stopped = false;
+      };
       this._watch = (dt) => {
         const C = getControlled ? getControlled() : null;
+        if (!this.skate && G && G.scene) this.skate = createSkateFX(G.scene, { phone });
+        const sfx = this.skate; camera.getWorldPosition(CAMP);
         for (const a of agents) {
           const s = st.get(a) || { fall: null, held: null, bonkAt: -1 }; st.set(a, s);
           const p = a.duck && a.duck.root ? a.duck.root.position : a.pos;
@@ -464,7 +705,9 @@ export function createComicFX({ camera, renderer, comic, container } = {}) {
           if (s.bonkAt > 0 && clock >= s.bonkAt) { s.bonkAt = -1; this.emit("bonk", p, { impact: isC ? 1 : 0, key: a.index, offsetY: 0.08 }); }
           if (a.fall && a.fall.kind === "edge" && isC) this.speed(p, 0.5);
           if (a.held && !s.held) this.emit("snap", (a.held.prop && a.held.prop.object && a.held.prop.object.position) || p, { offsetY: 0.06, key: a.index, cooldown: 0.4 });
+          if (s.fall && !a.fall && a.skates && sfx && !this.reducedMotion) for (let i = 0; i < 3; i++) sfx.glint(p.x, p.y + 0.02, p.z);
           s.fall = a.fall; s.held = a.held;
+          if (sfx && dt > 0) skateFX(a, s, dt, isC);
           const sp = a.skates && a.sv ? a.sv.length() : 0;
           if (sp > 0.22) {
             if (isC) this.speed(p, Math.min(0.8, (sp - 0.18) * 2.5));
