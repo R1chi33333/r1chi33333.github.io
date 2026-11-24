@@ -651,6 +651,29 @@ body.garage .bag-btn, body.customise .bag-btn { display: none; }
 .race-pick small { font: 500 12px/1.2 var(--font); opacity: .75; }
 .race-pick .x { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; border: 0; background: none; font: 700 26px/1 var(--font); color: var(--ink); cursor: pointer; }
 @media (pointer: coarse) { .race-pick kbd { display: none; } .race-pick button[data-track] { grid-template-columns: 1fr; } }
+
+/* ---- duck thoughts: comic speech bubbles over the AI ducks */
+.thoughts { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+.thought { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; opacity: 0; visibility: hidden; will-change: transform, opacity;
+  margin-top: -14px; translate: -50% -100%; display: flex; align-items: center; gap: 5px; max-width: 220px; padding: 6px 11px 5px 8px;
+  background: #fff; border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--ink); white-space: nowrap; }
+.thought.on { visibility: visible; }
+.thought::after { content: ""; position: absolute; left: 50%; bottom: -12px; width: 14px; height: 13px; margin-left: -9px; background: #fff;
+  border-right: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); transform: skewX(28deg) rotate(8deg); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.thought b { font: 400 19px/1 var(--display); letter-spacing: .04em; color: var(--ink); }
+.thought .ic { font-style: normal; font-size: 15px; line-height: 1; }
+.thought[data-kind="goal"], .thought[data-kind="fall"] { background: var(--yel); }
+.thought[data-kind="goal"]::after, .thought[data-kind="fall"]::after { background: var(--yel); }
+.thought[data-kind="laser"] b, .thought[data-kind="edge"] b { color: var(--red); }
+.thoughts-chip[aria-pressed="true"] .led { background: var(--lil); }
+@media (max-width: 720px) {
+  .thought { padding: 4px 8px 3px 6px; border-width: 2px; box-shadow: 3px 3px 0 var(--ink); border-radius: 11px; gap: 4px; }
+  .thought b { font-size: 15px; }
+  .thought .ic { font-size: 12px; }
+  body.view-open .play-chips { flex-wrap: nowrap; gap: 6px; }
+  body.view-open .play-chips .chip { flex: 1 1 0; min-width: 0; padding: 0 4px; gap: 5px; font-size: 14px; }
+}
+body.customise .thoughts, body.garage .thoughts { display: none; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -678,6 +701,7 @@ body.garage .bag-btn, body.customise .bag-btn { display: none; }
     <div class="play-chips" id="playChips">
       <button class="chip mode-play" id="intentBtn" aria-pressed="false" title="Click the floor to send it, click a toy to fetch it"><span class="led"></span><span class="lbl">Intent mode</span><span class="sm-lbl" aria-hidden="true">Intent</span></button>
       <button class="chip safety mode-play" id="safetyBtn" aria-pressed="true" title="Its own edge reflex"><span class="led"></span><span class="lbl">Safety reflex</span><span class="sm-lbl" aria-hidden="true">Safety</span></button>
+      <button class="chip thoughts-chip mode-play" id="thoughtsBtn" aria-pressed="true" title="Speech bubbles: what the other ducks are up to (T)"><span class="led"></span><span class="lbl">Duck thoughts</span><span class="sm-lbl" aria-hidden="true">Thoughts</span></button>
     </div>
     <button class="chip icon-btn" id="soundBtn" aria-pressed="true" aria-label="Sound"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h3l4-3v10l-4-3H2z"/><path id="soundWave" d="M11.5 5.5a3.5 3.5 0 0 1 0 5"/></svg></button>
     <button class="chip icon-btn" id="helpBtn" aria-label="Controls"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.3"/><circle cx="8" cy="11.6" r=".4" fill="currentColor"/></svg></button>
@@ -696,7 +720,7 @@ body.garage .bag-btn, body.customise .bag-btn { display: none; }
     <div><kbd>W</kbd><kbd>S</kbd> walk &nbsp;<kbd>A</kbd><kbd>D</kbd> turn &nbsp;<kbd>Space</kbd> beak &nbsp;<kbd>E</kbd> grab / drop</div>
     <div><kbd>X</kbd> sit &nbsp;<kbd>C</kbd> crouch &nbsp;<kbd>1</kbd>–<kbd>4</kbd> nod · shake · dance · look around</div>
     <div><kbd>K</kbd> skates: <kbd>Shift</kbd> boost · hold <kbd>Space</kbd> drift</div>
-    <div><kbd>L</kbd> laser &nbsp;<kbd>F</kbd> football &nbsp;<kbd>R</kbd> race &nbsp;<kbd>V</kbd> view</div>
+    <div><kbd>L</kbd> laser &nbsp;<kbd>F</kbd> football &nbsp;<kbd>R</kbd> race &nbsp;<kbd>V</kbd> view &nbsp;<kbd>T</kbd> thoughts</div>
     <div><kbd>Tab</kbd> or <b>click a duck</b> to drive it · <b>click your duck</b> to poke it</div>
     <div><b>Drag toys</b> from the <kbd>B</kbd> bag · <b>right-click</b> deletes · <b>drag</b> orbits · <b>scroll</b> zooms</div>
   </div>

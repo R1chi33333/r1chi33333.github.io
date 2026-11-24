@@ -13,6 +13,8 @@ import { Mind } from "./mind.js";
 import { Workshop } from "./garage.js";
 import { Voice, makeSerial, voiceParams } from "./voice.js";
 import { createSfx } from "./sfx.js";
+import { createThoughts } from "./thoughts.js";
+import { CUT } from "./house.js";
 import { Agent, SKATE } from "./agent.js";
 import { Football, Race } from "./games.js";
 import { createInventory } from "./inventory.js";
@@ -205,6 +207,44 @@ async function main() {
   const post = setupPost(renderer, scene, camera, { quality, samples: quality === "high" ? 4 : 2, aa: "msaa" });
   // ---- comic FX hook (toon.js): stickers / speed lines / impact frames driven from game state
   if (post.fx) { post.fx.reducedMotion = reduced; post.fx.watch(agents, G, () => ctlAgent); window.__fx = post.fx; }
+  // ---- duck thoughts: comic speech bubbles over the AI ducks (what each one is doing / about to do)
+  let wallMeshes = null;   // occluders for the bubbles: the merged wall meshes only (a few boxes, cheap to raycast)
+  const occluders = () => { if (!wallMeshes) { wallMeshes = []; (rawWorld.root || scene).traverse(m => { if (m.isMesh && m.material && m.material.name === "wall") wallMeshes.push(m); }); } return wallMeshes; };
+  const hudRects = []; let hudRectsAt = -1;
+  const HUD_SEL = [".brand", ".tabs", ".tools", ".layers", "#moves", "#bar:not(.collapsed)", "#bagBtn", "#gameHud:not(.hidden)", ".joy", ".tbtns", "#viewBtn", "#help:not(.fade)", "#mindPanel:not(.hidden)", "#thPanel:not(.hidden)", ".toast.show", "#racePick:not([hidden])", ".credit", "body.view-open .view-pop", "body.view-open .play-chips"];
+  function bubbleFree(x, y) {
+    if (frame !== hudRectsAt && (frame - hudRectsAt > 20 || hudRectsAt < 0)) {
+      hudRectsAt = frame; let n = 0;
+      for (const sel of HUD_SEL) for (const el of document.querySelectorAll(sel)) {
+        if (!el.offsetParent && getComputedStyle(el).position !== "fixed") continue;
+        const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) continue;
+        const R = hudRects[n] || (hudRects[n] = { l: 0, t: 0, r: 0, b: 0 }); R.l = r.left; R.t = r.top; R.r = r.right; R.b = r.bottom; n++;
+      }
+      hudRects.length = n;
+    }
+    // the bubble sits above (x, y): roughly 170 x 58 px (smaller on phone)
+    const hw = PHONE ? 66 : 88, h = PHONE ? 50 : 62;
+    for (const R of hudRects) if (x + hw > R.l && x - hw < R.r && y > R.t && y - h < R.b) return false;
+    return y - h > 0 && x - hw > 0 && x + hw < innerWidth;
+  }
+  // mirror of the wall cutaway shader (house.js): is this wall point currently cut away (so it doesn't hide a bubble)?
+  const _ab = V(), _ap = V();
+  function wallCut(pt) {
+    if (CUT.uCutTop.value !== 0 && pt.y > CUT.uCutTop.value) return true;
+    if (CUT.uCutOn.value <= 0.5) return false;
+    const c = CUT.uCutCam.value, f = CUT.uCutFocus.value;
+    if (pt.distanceTo(c) < CUT.uCutNear.value) return true;
+    _ab.copy(f).sub(c); const L2 = Math.max(_ab.lengthSq(), 1e-4), t = Math.min(1, Math.max(0, _ap.copy(pt).sub(c).dot(_ab) / L2));
+    const d = _ap.copy(c).addScaledVector(_ab, t).distanceTo(pt);
+    return t < 1 - 0.12 / Math.sqrt(L2) && d < CUT.uCutR.value + 0.03;
+  }
+  const thoughts = createThoughts({ G, camera, world, occluders, isCut: wallCut, phone: PHONE, isFree: bubbleFree });
+  { let on = true; try { on = localStorage.getItem("microduck.thoughts") !== "0"; } catch (e) { /* storage blocked */ } thoughts.enabled = on; }
+  function setThoughts(on) {
+    thoughts.enabled = !!on; $("thoughtsBtn").setAttribute("aria-pressed", String(thoughts.enabled));
+    try { localStorage.setItem("microduck.thoughts", thoughts.enabled ? "1" : "0"); } catch (e) { /* storage blocked */ }
+    if (!thoughts.enabled) thoughts.hideAll();
+  }
   // skate tricks -> comic FX (the skate smoke / bolts / skids in toon.js react to the acceleration and slip by themselves)
   G.events.boost = (a, kind) => {
     S.fxLog.push(kind);
@@ -263,6 +303,8 @@ async function main() {
   showMute();
   $("safetyBtn").onclick = () => { mind.safety = !mind.safety; $("safetyBtn").setAttribute("aria-pressed", String(mind.safety)); toast(mind.safety ? "Safety reflex on" : "Safety reflex off", mind.safety ? "It will refuse to step off an edge." : "It will do what you say, even off an edge.", mind.safety ? "info" : "warn"); };
   $("intentBtn").onclick = () => setIntentMode(!S.intentMode);
+  $("thoughtsBtn").onclick = () => setThoughts(!thoughts.enabled);
+  $("thoughtsBtn").setAttribute("aria-pressed", String(thoughts.enabled));
   function setIntentMode(on) {
     S.intentMode = on; $("intentBtn").setAttribute("aria-pressed", String(on));
     renderer.domElement.classList.toggle("intent", on);
@@ -295,7 +337,7 @@ async function main() {
     },
   };
   Object.assign(G.events, {   // keep the skate-trick handlers added above
-    goal(team, score) { toast("GOAL!", (team === ctlAgent.team ? "Your team scores. " : "The other team scores. ") + score[0] + " : " + score[1], "info", 2200); voice.play("happy", { force: true, params: ctlAgent.voice }); pulse(); },
+    goal(team, score) { for (const a of agents) if (a.team === team && !a.controlled) thoughts.event(a, "goal"); toast("GOAL!", (team === ctlAgent.team ? "Your team scores. " : "The other team scores. ") + score[0] + " : " + score[1], "info", 2200); voice.play("happy", { force: true, params: ctlAgent.voice }); pulse(); },
     countdown(n) { voice.play(n === 0 ? "happy" : "curious", { force: true, params: ctlAgent.voice }); },
     finish(a, place, t) { if (a === ctlAgent) toast(place === 1 ? "You win!" : `Finished ${["", "1st", "2nd", "3rd"][place] || place + "th"}`, "Time " + fmt(t), "info", 3400); },
     raceOver() { toast("Race over", "Press R or the Race button to go again.", "info"); },
@@ -553,6 +595,14 @@ async function main() {
   function agentOfObject(o) { for (const a of agents) { let p = o; while (p) { if (p === a.duck.root) return a; p = p.parent; } } return null; }
   function propOfObject(o) { for (const p of phys.props) { let q = o; while (q) { if (q === p.object) return p; q = q.parent; } } return null; }
   const duckMeshes = () => agents.flatMap(a => a.rig.meshes.filter(m => m.visible));
+  // hovering an AI duck pops its thought bubble right away (throttled pick)
+  let hoverAt = 0, hovered = null;
+  function hoverDuck(x, y) {
+    const now = performance.now(); if (now - hoverAt < 140 || S.customising || S.mode === "garage") return; hoverAt = now;
+    const h = pick(x, y, duckMeshes()), a = h ? agentOfObject(h.object) : null;
+    if (a && !a.controlled && a !== hovered) thoughts.poke(a);
+    hovered = a;
+  }
 
   // ---------------------------------------------------------------- inventory
   const DUCK_ICON = '<svg viewBox="0 0 24 24" width="24" height="24"><path d="M6 6.5c0-2 2-3.5 6-3.5s6 1.5 6 3.5v3H6z" fill="#EFE6D2"/><path d="M6 9.5h12v1.5H6z" fill="#F28C28"/><circle cx="9" cy="7" r="1.6" fill="#F5B324"/><rect x="10.8" y="11" width="2.4" height="3" fill="#44484E"/><rect x="8" y="14" width="8" height="4.5" rx="1.5" fill="#EFE6D2"/><path d="M7.5 21h3.5l-.6-2.5H8zM13 21h3.5l-.5-2.5h-2.4z" fill="#F28C28"/></svg>';
@@ -626,6 +676,7 @@ async function main() {
     if (k === " " && !ctlAgent.skates) beakDown();          // on skates Space is held for drifting instead
     if (k === "shift") doMove("boost");
     if (k === "b") setBag(!S.bagOpen);
+    if (k === "t") { setThoughts(!thoughts.enabled); toast(thoughts.enabled ? "Duck thoughts on" : "Duck thoughts off", "", "info", 1200); }
     if (k === "e") grabKey();
     if (k === "v") setLayer({ surface: "xray", xray: "mind", mind: "surface" }[S.layer]);
     if (!racePick.hidden) {
@@ -685,7 +736,7 @@ async function main() {
   });
   cv.addEventListener("pointermove", (e) => {
     if (laser.on && e.pointerType === "mouse") laserAt(e.clientX, e.clientY);
-    if (e.pointerType === "mouse" && !pointers.size) inv.hover(e.clientX, e.clientY);
+    if (e.pointerType === "mouse" && !pointers.size) { inv.hover(e.clientX, e.clientY); hoverDuck(e.clientX, e.clientY); }
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); cam.tDist = clamp(pinch.dist * pinch.d / Math.max(d, 1), 0.22, 2.4); return; }
@@ -924,6 +975,7 @@ async function main() {
     if (mindVisible && (TEST || frame % 3 === 0)) renderEye();
     if (!$("mindPanel").classList.contains("hidden")) mind.drawDepth(tofCv);
     updateHUD(); updateBoostUI();
+    if (!S.customising && S.mode !== "garage") thoughts.update(dt || DT); else thoughts.hideAll();
   }
 
   // ---------------------------------------------------------------- detail LOD: far ducks lose ink lines + shadows, far props stop casting
@@ -1191,7 +1243,7 @@ async function main() {
     laserAtWorld: (x, z) => { laser.on = true; laser.point.set(x, world.groundHeightAt(x, z, H) + 0.003, z); laser.visible = true; laser.dot.setVisible(true); laser.from.copy(camera.position); laser.dot.set(laser.point, V(0, 1, 0), camera.position.clone().add(V(0.2, 0, 0))); refreshMoves(); },
     laserOff: () => setLaser(false),
     football: (on) => toggleFootball(on), race: (on) => toggleRace(on),
-    track: (kind) => startTrack(kind), lod: LOD,
+    track: (kind) => startTrack(kind), thoughts: { get on() { return thoughts.enabled; }, set: (on) => setThoughts(on), get bubbles() { return thoughts.bubbles; }, line: (i) => thoughts.lineOf(agents[i]), poke: (i) => thoughts.poke(agents[i]), debug: () => thoughts.debug() }, lod: LOD,
     spreadDucks: () => { const pts = world.anchors.houseSpawnPoints || []; agents.forEach((a, i) => { if (a === ctlAgent || !pts.length) return; const sp = pts[(i * 5) % pts.length]; a.teleport(V(...sp.position), sp.yaw || 0); }); }, get drag() { return S.drag && { phase: S.drag.phase, t: +S.drag.t.toFixed(2), best: S.drag.best }; },
     kickBall: (x, z) => { const b = G.balls[0]; if (b) phys.impulse(b, V(x, 0.0, z)); },
     placeBall: (x, z) => { const b = G.balls[0]; if (b) phys.place(b, V(x, world.groundHeightAt(x, z, H) + 0.002, z)); },
