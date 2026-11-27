@@ -40,7 +40,7 @@
       <div class="splash-text">
         <p class="caption">Meanwhile, in Auckland…</p>
         <h1>I build playful worlds you can step inside.</h1>
-        <p class="lead">I'm Richie, an interaction engineer for XR, games and AI agents. I take an idea from a sketch to something you can put on your head, and I care about how it feels: comfortable, readable, a bit funny.</p>
+        <p class="lead">I'm Richie, a software and ML engineer with an HCI master's from HIT Lab NZ and two years of ML engineering at SIAT. I build VR games, AI agents and the tools behind them, and I care how they feel: comfortable, readable, a bit funny.</p>
         <div class="btn-row">
           <a class="btn" href="microduck.html">Read the Microduck Lab case study</a>
           <a class="btn plain" href="projects.html">See all work</a>
@@ -48,7 +48,7 @@
         <ul class="hero-facts">
           <li class="open">Open to work, available now</li>
           <li>M.E. Human Interface Technology</li>
-          <li>English, Korean, Chinese</li>
+          <li>Chinese, English, Korean</li>
         </ul>
       </div>
       <div class="splash-duck">
@@ -102,8 +102,8 @@
       <article class="panel lav">
         <img class="role-duck" src="media/microduck/move-look-still.webp" data-anim="media/microduck/move-look.webp" width="320" height="320" alt="">
         <h3>HCI research</h3>
-        <p>Controlled user studies with validated scales and careful statistics. My thesis measured how an AI agent that keeps its identity across bodies changes rapport and trust.</p>
-        <ul class="chips"><li>Study design</li><li>ANCOVA</li><li>R</li></ul>
+        <p>Controlled user studies with validated scales and careful statistics. My thesis measured how an AI agent that keeps its identity across bodies changes rapport and credibility.</p>
+        <ul class="chips"><li>User-study design</li><li>ANCOVA</li><li>Effect sizes</li></ul>
       </article>
       <article class="panel sky">
         <img class="role-duck" src="media/microduck/move-hop-still.webp" data-anim="media/microduck/move-hop.webp" width="320" height="320" alt="">
@@ -114,8 +114,8 @@
       <article class="panel">
         <img class="role-duck" src="media/microduck/move-bite-still.webp" data-anim="media/microduck/move-bite.webp" width="320" height="320" alt="">
         <h3>AI agents and ML</h3>
-        <p>Agents that see, listen and talk (LLM, VLM, speech in and out), retrieval systems with published evals, and machine learning that ran in production at SIAT.</p>
-        <ul class="chips"><li>LLM · RAG</li><li>Python</li><li>FastAPI</li></ul>
+        <p>Agents that see, listen and talk (LLM, VLM, speech in and out), retrieval with a published eval set, and two years of ML engineering at SIAT on ECG and IMU signals.</p>
+        <ul class="chips"><li>PyTorch</li><li>LightGBM</li><li>LLM / RAG</li><li>FastAPI</li></ul>
       </article>
     </div>
   </div>
@@ -131,13 +131,13 @@
       <div>
         <blockquote>“One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents.”</blockquote>
         <p>A between-subjects study testing whether an AI agent that keeps one continuous identity, while its body changes across three VR games, builds a stronger relationship with people than agents who meet them as strangers each time.</p>
-        <p class="small muted">Method: ANCOVA, baseline-controlled, validated rapport, connectedness and trust scales. The three games are on the <a href="projects.html#hci">work page</a> with gameplay video.</p>
+        <p class="small muted">Method: ANCOVA, baseline-controlled, validated rapport, connectedness and credibility scales. The three games are on the <a href="projects.html#hci">work page</a> with gameplay video.</p>
       </div>
       <div class="stats">
-        <div class="stat"><b><i>d</i> = 1.22</b><span>Large effect on emotional connectedness</span></div>
-        <div class="stat"><b>26</b><span>Participants, 13 per condition</span></div>
+        <div class="stat"><b><i>d</i> = 1.22</b><span>Identity continuity raised rapport</span></div>
+        <div class="stat"><b><i>N</i> = 26</b><span>Participants, between-subjects</span></div>
         <div class="stat"><b>3</b><span>Bodies for one continuous agent</span></div>
-        <div class="stat"><b>4</b><span>Channels: LLM, VLM, speech in, speech out</span></div>
+        <div class="stat"><b><i>d</i> = 1.13</b><span>And raised credibility</span></div>
       </div>
     </div>
   </div>
@@ -150,13 +150,21 @@
     </div>
     <ol class="panel flat timeline" reversed>
       <li class="job">
+        <div><span class="when">Sep 2026 – now</span><span class="org">Auckland</span></div>
+        <div>
+          <h3 class="h4">Visiting researcher, Inclusive Reality Lab, University of Auckland</h3>
+          <ul>
+            <li>Built a real-time pipeline in which one wearable exoskeleton drives a dual-arm robot (Python, Raspberry Pi) and a VR avatar (Unity, Quest Pro) at once.</li>
+            <li>Designing the first prototype for the lab's ADHD project, from the team's interview findings and requirements.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="job">
         <div><span class="when">Nov 2025 – Jan 2026</span><span class="org">Christchurch</span></div>
         <div>
-          <h3 class="h4">Research assistant, HIT Lab NZ</h3>
+          <h3 class="h4">Research assistant, HIT Lab NZ, University of Canterbury</h3>
           <ul>
-            <li>Built multimodal AI (LLM, VLM, speech in and out) into an interactive educational system.</li>
-            <li>Designed the full-stack architecture: Python backend, responsive front end.</li>
-            <li>Wrote tutorials and docs that got beginners productive in the codebase.</li>
+            <li>Integrated multimodal AI agents (LLM, VLM, speech to text, text to speech) into an existing Unity VR project; set up Meta Quest devices and wrote onboarding tutorials.</li>
           </ul>
         </div>
       </li>
@@ -165,20 +173,17 @@
         <div>
           <h3 class="h4">Software engineer intern, WEL Networks</h3>
           <ul>
-            <li>Built a Python inverter-compliance checker over 6M+ smart-meter records.</li>
-            <li>Implemented export-limit, volt-watt and volt-var compliance algorithms.</li>
-            <li>Replaced manual verification with automated real-time monitoring.</li>
+            <li>Built a Python inverter-compliance system over 6M+ smart-meter records (export limit, volt-watt and volt-var detection) that replaced manual verification.</li>
           </ul>
         </div>
       </li>
       <li class="job">
-        <div><span class="when">Sep 2022 – Oct 2023</span><span class="org">Shenzhen</span></div>
+        <div><span class="when">Sep 2022 – Oct 2024</span><span class="org">Shenzhen</span></div>
         <div>
           <h3 class="h4">Machine learning engineer, SIAT, Chinese Academy of Sciences</h3>
           <ul>
-            <li>Core-body-temperature prediction at 95% accuracy, deployed for real-time monitoring.</li>
-            <li>Exercise-fatigue platform on ECG and IMU deep learning, 85.46% accuracy.</li>
-            <li>Tuned XGBoost, SVR and neural nets for edge devices, 40% faster inference.</li>
+            <li>Designed a multi-branch two-stage regression network (DMTRN) fusing ECG and IMU signals to estimate exercise energy expenditure: R² = 0.97, RMSE 22.8% and 42.3% below Random Forest and DenseNet, 35 MB, under 154 ms inference.</li>
+            <li>Built an exercise-fatigue grading pipeline: feature selection cut 24 heart-rate-variability features to 11 and raised average F1 by 2–6.3%, reaching 85.46% accuracy.</li>
           </ul>
         </div>
       </li>
@@ -186,15 +191,15 @@
     <div class="tiles" style="margin-top:1.6rem">
       <div class="panel flat">
         <h3 class="h4">M.E. Human Interface Technology</h3>
-        <p class="small">University of Canterbury, GPA 7.63<br>Feb 2025 – Apr 2026</p>
+        <p class="small">University of Canterbury (HIT Lab NZ), GPA 7.63/9<br>Feb 2025 – Apr 2026</p>
       </div>
       <div class="panel flat">
-        <h3 class="h4">B.S. Computer Science</h3>
-        <p class="small">Yanbian University<br>2017 – 2021</p>
+        <h3 class="h4">B.Sc. Computer Science</h3>
+        <p class="small">Yanbian University<br>Jun 2017 – Sep 2021</p>
       </div>
       <div class="panel flat">
         <h3 class="h4">Skills</h3>
-        <p class="small">Unity, C#, OpenXR, three.js, TypeScript, React, Python, Java, SQL, FastAPI, PostgreSQL, Docker, Kubernetes, Linux, Swift, R, study design and statistics.</p>
+        <p class="small"><b>ML and AI:</b> PyTorch, scikit-learn, XGBoost, LightGBM, LLM / RAG, speech to text and text to speech.<br><b>Languages:</b> Python, C#, TypeScript, SQL.<br><b>Data and MLOps:</b> pandas, NumPy, FastAPI, Docker, PostgreSQL, Git, Linux, GitHub Actions.<br><b>XR:</b> Unity (C#), OpenXR, Meta Quest 3 and Quest Pro.</p>
       </div>
     </div>
   </div>
@@ -230,6 +235,7 @@
     <ul class="contact-list">
       <li><a href="mailto:richiejyt@gmail.com">richiejyt@gmail.com</a></li>
       <li><a href="https://github.com/R1chi33333" target="_blank" rel="noopener">github.com/R1chi33333</a></li>
+      <li><a href="https://www.linkedin.com/in/yutong-jin-a1743b291" target="_blank" rel="noopener">LinkedIn</a></li>
       <li><a href="tel:+64272922743">+64 27 292 2743</a></li>
       <li><a href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">CV (PDF)</a></li>
     </ul>
