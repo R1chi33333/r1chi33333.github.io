@@ -1,350 +1,258 @@
 <!DOCTYPE html>
 <html lang="en">
-<!--
-  ============================================================================
-  ONE SOUL, MANY FORMS  —  Yutong "Richie" Jin
-  Light-theme cinematic portfolio with a live, interactive AI-AGENT NETWORK
-  background (canvas node-link graph). Fully self-contained, no images.
-  ----------------------------------------------------------------------------
-  Concept: One soul (Richie) → Many forms (the four roles he can take):
-    Software Engineer · Machine Learning Engineer · AI Engineer · HCI
-  The thesis ("identity continuity in AI agents") is the metaphor: one identity,
-  many embodiments. VR is only the experimental environment, not the subject.
-
-  Epic-design techniques applied:
-    • Interactive AI-agent network background (canvas, mouse + scroll reactive)
-    • 6-layer depth/parallax system (data-depth 0..5)
-    • Scroll-driven theme morph across the four forms (colour shifts)
-    • Masked line reveal + fade-rise + split text entrances
-    • Cascading project cards · sticky experience timeline
-    • Animated number counters
-    • prefers-reduced-motion + pointer:coarse fallbacks (mandatory)
-  ============================================================================
--->
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Yutong (Richie) Jin — One Soul, Many Forms</title>
-<meta name="description" content="Yutong (Richie) Jin — Software Engineer · Machine Learning Engineer · AI Engineer · HCI. One soul, many forms." />
-<meta name="author" content="Yutong (Richie) Jin" />
-<meta property="og:title" content="Yutong (Richie) Jin — One Soul, Many Forms" />
-<meta property="og:description" content="Software Engineer · ML Engineer · AI Engineer · HCI. Research on AI-agent identity continuity, production ML, multi-modal agents." />
-<meta property="og:type" content="website" />
-
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Richie Jin — interaction engineer for XR, games and AI agents</title>
+<meta name="description" content="Yutong (Richie) Jin builds playful interactive systems: VR games, AI agents and the prototypes in between. Master of Engineering in Human Interface Technology, Auckland.">
+<meta name="author" content="Yutong (Richie) Jin">
+<meta property="og:title" content="Richie Jin — interaction engineer for XR, games and AI agents">
+<meta property="og:description" content="VR games, AI agents and the prototypes in between. Featured: Microduck Lab, from browser toy to VR game.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://r1chi33333.github.io/media/microduck/cover.jpg">
+<link rel="preload" href="fonts/Bangers-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
 </head>
-
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
-<a href="#main-content" class="skip-link">Skip to main content</a>
-
-<!-- live AI-agent network background + accent wash -->
-<div id="aura" data-depth="0" aria-hidden="true"></div>
-<div id="net" data-depth="1" aria-hidden="true"><canvas id="netCanvas"></canvas></div>
-
-<div id="progress" aria-hidden="true"></div>
-
-<nav id="nav">
-  <div class="brand">RICHIE<i>·</i>JIN</div>
-  <div class="nav-right">
-    <div class="links">
-      <a href="#forms">Forms</a>
-      <a href="#experience">Experience</a>
-      <a href="projects.html">Work</a>
-      <a href="#research">Research</a>
-      <a href="#skills">Skills</a>
-      <a href="#contact">Contact</a>
-    </div>
-    <a class="nav-cv" href="Richie-Jin-CV.pdf" target="_blank" rel="noopener"><i></i>View CV</a>
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html">Richie Jin</a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="microduck.html">Microduck</a></li>
+        <li><a href="projects.html">All work</a></li>
+        <li><a href="#research">Research</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <a class="btn" href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">CV (PDF)</a>
   </div>
-</nav>
+</header>
 
-<main id="main-content">
+<main id="main">
 
-<!-- ============================ HERO ============================ -->
-<section class="scene" id="hero" data-form="aie">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:46vw;height:46vw;left:-10vw;top:-6vw;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise">Yutong · Richie · Jin</p>
-    <h1 class="hero-title">
-      <span class="reveal-line"><span>One Soul,</span></span>
-      <span class="reveal-line"><span><em class="ghost" id="formword">Many Forms.</em></span></span>
-    </h1>
-  </div>
-  <div class="scroll-hint" aria-hidden="true">Scroll to transform</div>
-</section>
-
-<!-- ============================ PAGE 2 — INTRO / PITCH ============================ -->
-<section class="scene" id="intro" data-form="aie">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:40vw;height:40vw;right:-10vw;top:8vh;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <div class="act-line rise"><span class="n">01</span><span class="t">Who I am</span></div>
-    <p class="intro-lead rise">
-      I'm an engineer who loves building <b>AI agents</b> — and designing the <b>games</b> they come alive in.
-    </p>
-    <p class="intro-support rise">
-      I'm Richie, a Master of Engineering who builds <b>AI agents</b> and the interactive worlds they live in —
-      multi-modal agents (LLM, vision, speech), <b>VR games</b>, and the <b>machine learning</b> underneath.
-      I'm happiest giving a character a little life. Still learning, always building — based in Auckland, open to work.
-    </p>
-    <div class="hr-strip rise">
-      <span class="st"><i></i> Open to work · Available now</span>
-      <span class="st">M.E. graduate · 2026</span>
-      <span class="st">Auckland, New Zealand</span>
-      <span class="st">EN · 한국어 · 中文</span>
-      <a class="cv-btn" href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">View CV ↗</a>
-    </div>
-  </div>
-</section>
-
-<!-- ============================ THE FOUR FORMS ============================ -->
-<section class="scene" id="forms" data-form="aie">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:38vw;height:38vw;right:-8vw;top:8vh;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise">The four forms</p>
-    <p class="manifesto" data-light>
-      My thesis asked whether an agent stays <span class="hl">itself</span> while changing form.
-      So do I — one core of curiosity taking <span class="hl">four shapes</span>, each backed by real work.
-    </p>
-
-    <div class="forms-grid">
-      <div class="form-card rise"><span class="bar"></span>
-        <div class="no">FORM I</div><div class="nm">AI<br/>Engineer</div>
-        <p>Multi-modal &amp; multi-agent systems — LLM/VLM/STT/TTS, local RAG, computer-vision APIs.</p>
+<section class="hero">
+  <div class="wrap">
+    <div class="splash">
+      <div class="splash-text">
+        <p class="caption">Meanwhile, in Auckland…</p>
+        <h1>I build playful worlds you can step inside.</h1>
+        <p class="lead">I'm Richie, an interaction engineer for XR, games and AI agents. I take an idea from a sketch to something you can put on your head, and I care about how it feels: comfortable, readable, a bit funny.</p>
+        <div class="btn-row">
+          <a class="btn" href="microduck.html">Read the Microduck Lab case study</a>
+          <a class="btn plain" href="projects.html">See all work</a>
+        </div>
+        <ul class="hero-facts">
+          <li class="open">Open to work, available now</li>
+          <li>M.E. Human Interface Technology</li>
+          <li>English, Korean, Chinese</li>
+        </ul>
       </div>
-      <div class="form-card rise"><span class="bar"></span>
-        <div class="no">FORM II</div><div class="nm">Machine&nbsp;Learning Engineer</div>
-        <p>Production ML in healthcare &amp; energy — 95% accuracy, edge-optimized, deployed for real-time use.</p>
-      </div>
-      <div class="form-card rise"><span class="bar"></span>
-        <div class="no">FORM III</div><div class="nm">Software<br/>Engineer</div>
-        <p>Full-stack systems &amp; automation — grid data over 6M records, Python backends, real-time APIs.</p>
-      </div>
-      <div class="form-card rise"><span class="bar"></span>
-        <div class="no">FORM IV</div><div class="nm">HCI</div>
-        <p>Human-centred research — agent identity, trust &amp; rapport, controlled user studies and statistics.</p>
+      <div class="splash-duck">
+        <p class="bubble">Hi! I'm the duck from Microduck Lab.</p>
+        <picture>
+          <source media="(prefers-reduced-motion: reduce)" srcset="media/microduck/move-dance-still.webp">
+          <img src="media/microduck/move-dance.webp" width="320" height="320" alt="A small robot duck with a white head shell dancing on the spot">
+        </picture>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============================ EDUCATION ============================ -->
-<section class="scene" id="education" data-form="swe">
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise">Education</p>
-    <div class="edu-row">
-      <div class="edu rise">
-        <div class="deg">M.E. Human Interface Technology</div>
-        <div class="sch">University of Canterbury · GPA 7.63</div>
-        <div class="yr">Feb 2025 — Apr 2026 · Christchurch, NZ</div>
-      </div>
-      <div class="edu rise">
-        <div class="deg">B.S. Computer Science</div>
-        <div class="sch">Yanbian University</div>
-        <div class="yr">2017 — 2021 · Yanji, China</div>
+<section aria-labelledby="featured-title">
+  <div class="wrap">
+    <div class="feature">
+      <a class="frame" href="microduck.html" aria-label="Microduck Lab case study">
+        <img src="media/microduck/cover.jpg" width="1600" height="800" alt="Microduck Lab comic cover: a robot duck points at a living room where tiny ducks play football and race">
+      </a>
+      <div class="panel">
+        <span class="sticker hot">Featured</span>
+        <h2 id="featured-title" style="margin-top:.6rem">Microduck Lab</h2>
+        <p>A flock of tiny robot ducks, first as a toy you play in the browser, then as a VR game where you are one of them: 25 cm tall in a human-sized comic-book house.</p>
+        <dl class="facts">
+          <dt>My role</dt><dd>Concept, game design, art direction and development</dd>
+          <dt>Web</dt><dd>three.js and Rapier physics, playable now</dd>
+          <dt>VR</dt><dd>Unity 6, OpenXR, Quest Pro (in preview)</dd>
+        </dl>
+        <div class="btn-row">
+          <a class="btn" href="microduck.html">Read the case study</a>
+          <button class="btn plain" type="button" data-video="media/microduck/gameplay-720.mp4" data-title="Microduck Lab VR: a three-minute playthrough">Watch 3 min of play</button>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============================ EXPERIENCE ============================ -->
-<section class="scene" id="experience" data-form="swe">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:40vw;height:40vw;right:-10vw;top:0;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <div class="xp">
-      <div class="xp-sticky">
-        <div class="act-line"><span class="n">02</span><span class="t">What I've done</span></div>
-        <h2 class="section-title">Built to ship,<br/>measured in results.</h2>
-        <p class="lead">From hospital wards to the power grid — machine learning and full-stack systems that ran in production, not just notebooks.</p>
-      </div>
+<section aria-labelledby="do-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="do-title">What I do</h2>
+      <p class="lead">Four kinds of work, often in the same project.</p>
+    </div>
+    <div class="strip">
+      <article class="panel yellow">
+        <img class="role-duck" src="media/microduck/move-skate-still.webp" data-anim="media/microduck/move-skate.webp" width="320" height="320" alt="">
+        <h3>XR and interaction prototyping</h3>
+        <p>I turn ideas into things you can try in a headset or a browser tab, fast. Comfort-first movement, onboarding that teaches by doing, and input that maps cleanly from keyboard to controllers.</p>
+        <ul class="chips"><li>Unity</li><li>OpenXR</li><li>Quest</li><li>three.js</li><li>C#</li><li>TypeScript</li></ul>
+      </article>
+      <article class="panel lav">
+        <img class="role-duck" src="media/microduck/move-look-still.webp" data-anim="media/microduck/move-look.webp" width="320" height="320" alt="">
+        <h3>HCI research</h3>
+        <p>Controlled user studies with validated scales and careful statistics. My thesis measured how an AI agent that keeps its identity across bodies changes rapport and trust.</p>
+        <ul class="chips"><li>Study design</li><li>ANCOVA</li><li>R</li></ul>
+      </article>
+      <article class="panel sky">
+        <img class="role-duck" src="media/microduck/move-hop-still.webp" data-anim="media/microduck/move-hop.webp" width="320" height="320" alt="">
+        <h3>Game and VR development</h3>
+        <p>Systems that make a world feel alive: flocking AI, procedural walking, physics toys, mini-games and two-player LAN co-op, targeting 90 fps in a headset.</p>
+        <ul class="chips"><li>Gameplay systems</li><li>Netcode</li><li>Shaders</li></ul>
+      </article>
+      <article class="panel">
+        <img class="role-duck" src="media/microduck/move-bite-still.webp" data-anim="media/microduck/move-bite.webp" width="320" height="320" alt="">
+        <h3>AI agents and ML</h3>
+        <p>Agents that see, listen and talk (LLM, VLM, speech in and out), retrieval systems with published evals, and machine learning that ran in production at SIAT.</p>
+        <ul class="chips"><li>LLM · RAG</li><li>Python</li><li>FastAPI</li></ul>
+      </article>
+    </div>
+  </div>
+</section>
 
-      <div class="xp-list">
-        <div class="job rise">
-          <div class="role">Research Assistant</div>
-          <div class="org">HIT Lab NZ · University of Canterbury</div>
-          <div class="when">Nov 2025 — Jan 2026 · Christchurch, NZ</div>
+<section id="research" aria-labelledby="research-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="research-title">Research</h2>
+      <p class="lead">Master of Engineering thesis at HIT Lab NZ, University of Canterbury, supervised by Dr. Susanne Schmidt and Prof. Robert W. Lindeman.</p>
+    </div>
+    <div class="panel thesis">
+      <div>
+        <blockquote>“One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents.”</blockquote>
+        <p>A between-subjects study testing whether an AI agent that keeps one continuous identity, while its body changes across three VR games, builds a stronger relationship with people than agents who meet them as strangers each time.</p>
+        <p class="small muted">Method: ANCOVA, baseline-controlled, validated rapport, connectedness and trust scales. The three games are on the <a href="projects.html#hci">work page</a> with gameplay video.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><b><i>d</i> = 1.22</b><span>Large effect on emotional connectedness</span></div>
+        <div class="stat"><b>26</b><span>Participants, 13 per condition</span></div>
+        <div class="stat"><b>3</b><span>Bodies for one continuous agent</span></div>
+        <div class="stat"><b>4</b><span>Channels: LLM, VLM, speech in, speech out</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="experience" aria-labelledby="xp-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="xp-title">Experience</h2>
+    </div>
+    <ol class="panel flat timeline" reversed>
+      <li class="job">
+        <div><span class="when">Nov 2025 – Jan 2026</span><span class="org">Christchurch</span></div>
+        <div>
+          <h3 class="h4">Research assistant, HIT Lab NZ</h3>
           <ul>
-            <li>Integrated <b>multi-modal AI</b> (LLM, VLM, TTS, STT) into an interactive educational system.</li>
-            <li>Designed a full-stack architecture — <b>Python backend</b> with a responsive frontend.</li>
-            <li>Authored tutorials &amp; documentation onboarding beginners to the codebase.</li>
+            <li>Built multimodal AI (LLM, VLM, speech in and out) into an interactive educational system.</li>
+            <li>Designed the full-stack architecture: Python backend, responsive front end.</li>
+            <li>Wrote tutorials and docs that got beginners productive in the codebase.</li>
           </ul>
         </div>
-
-        <div class="job rise">
-          <div class="role">Software Engineer Intern</div>
-          <div class="org">WEL Networks</div>
-          <div class="when">Jun 2025 — Jul 2025 · Christchurch, NZ</div>
+      </li>
+      <li class="job">
+        <div><span class="when">Jun – Jul 2025</span><span class="org">Christchurch</span></div>
+        <div>
+          <h3 class="h4">Software engineer intern, WEL Networks</h3>
           <ul>
-            <li>Built a Python inverter-compliance detection system processing <b>6M+ smart-meter records</b>.</li>
-            <li>Implemented <b>Export Limit, Volt-Watt &amp; Volt-Var</b> compliance algorithms for grid stability.</li>
-            <li>Delivered automation replacing manual verification with <b>real-time monitoring</b>.</li>
+            <li>Built a Python inverter-compliance checker over 6M+ smart-meter records.</li>
+            <li>Implemented export-limit, volt-watt and volt-var compliance algorithms.</li>
+            <li>Replaced manual verification with automated real-time monitoring.</li>
           </ul>
         </div>
-
-        <div class="job rise">
-          <div class="role">Machine Learning Engineer</div>
-          <div class="org">SIAT · Chinese Academy of Sciences</div>
-          <div class="when">Sep 2022 — Oct 2023 · Shenzhen, China</div>
+      </li>
+      <li class="job">
+        <div><span class="when">Sep 2022 – Oct 2023</span><span class="org">Shenzhen</span></div>
+        <div>
+          <h3 class="h4">Machine learning engineer, SIAT, Chinese Academy of Sciences</h3>
           <ul>
-            <li>Engineered core-body-temperature prediction reaching <b>95% accuracy</b>, deployed for real-time monitoring.</li>
-            <li>Built a production exercise-fatigue platform on ECG/IMU deep learning — <b>85.46% accuracy</b>.</li>
-            <li>Optimized XGBoost / SVR / neural nets for edge, cutting inference time by <b>40%</b>.</li>
+            <li>Core-body-temperature prediction at 95% accuracy, deployed for real-time monitoring.</li>
+            <li>Exercise-fatigue platform on ECG and IMU deep learning, 85.46% accuracy.</li>
+            <li>Tuned XGBoost, SVR and neural nets for edge devices, 40% faster inference.</li>
           </ul>
         </div>
+      </li>
+    </ol>
+    <div class="tiles" style="margin-top:1.6rem">
+      <div class="panel flat">
+        <h3 class="h4">M.E. Human Interface Technology</h3>
+        <p class="small">University of Canterbury, GPA 7.63<br>Feb 2025 – Apr 2026</p>
+      </div>
+      <div class="panel flat">
+        <h3 class="h4">B.S. Computer Science</h3>
+        <p class="small">Yanbian University<br>2017 – 2021</p>
+      </div>
+      <div class="panel flat">
+        <h3 class="h4">Skills</h3>
+        <p class="small">Unity, C#, OpenXR, three.js, TypeScript, React, Python, Java, SQL, FastAPI, PostgreSQL, Docker, Kubernetes, Linux, Swift, R, study design and statistics.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============================ PROJECTS ============================ -->
-<section class="scene" id="projects" data-form="aie">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:46vw;height:46vw;left:-12vw;top:6vh;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise">Selected Work</p>
-    <h2 class="section-title reveal-line"><span>Things I built<br/>because I had to.</span></h2>
-    <p class="games-sub rise">Fourteen projects across three forms. Pick a form to see every project with screenshots, live demos, and gameplay video.</p>
-
-    <div class="cat-grid">
-      <a class="card cat-tile rise" data-cat="hci" href="projects.html#hci">
-        <span class="bar" aria-hidden="true"></span>
-        <span class="gthumb"><img src="media/oppy.jpg" alt="Oppy embodied agent in VR" loading="lazy" /></span>
-        <div class="gbody">
-          <div class="count">3 PROJECTS · GAMEPLAY VIDEO</div>
-          <h3>HCI</h3>
-          <p>VR games with LLM-driven embodied agents — my master's thesis, playable.</p>
-          <span class="go">Explore →</span>
-        </div>
+<section aria-labelledby="work-title">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="work-title">More work</h2>
+      <p class="lead">Sixteen projects with screenshots, live demos and gameplay video.</p>
+    </div>
+    <div class="tiles">
+      <a class="tile" href="projects.html#hci">
+        <img src="media/oppy.jpg" alt="Oppy, an embodied AI teammate in a VR shooter" loading="lazy">
+        <div><h3>VR and agents</h3><p class="small">Three VR games with an LLM-driven agent, built for my thesis.</p></div>
       </a>
-
-      <a class="card cat-tile rise" data-cat="swe" href="projects.html#swe">
-        <span class="bar" aria-hidden="true"></span>
-        <span class="gthumb"><img src="media/shots/flatsplit.jpg" alt="FlatSplit settlement view" loading="lazy" /></span>
-        <div class="gbody">
-          <div class="count">7 PROJECTS · 5 LIVE</div>
-          <h3>SWE</h3>
-          <p>Shipped products and tools — tested, released, and monitored on live infrastructure.</p>
-          <span class="go">Explore →</span>
-        </div>
+      <a class="tile" href="projects.html#swe">
+        <img src="media/shots/flatsplit.jpg" alt="FlatSplit settlement view" loading="lazy">
+        <div><h3>Software</h3><p class="small">Seven shipped tools, five of them live, tested and monitored.</p></div>
       </a>
-
-      <a class="card cat-tile rise" data-cat="mle" href="projects.html#mle">
-        <span class="bar" aria-hidden="true"></span>
-        <span class="gthumb"><img src="media/shots/tenancymate.jpg" alt="TenancyMate cited answer view" loading="lazy" /></span>
-        <div class="gbody">
-          <div class="count">5 PROJECTS · 1 LIVE</div>
-          <h3>MLE</h3>
-          <p>RAG with published evals, local LLM services, and real-time computer vision.</p>
-          <span class="go">Explore →</span>
-        </div>
+      <a class="tile" href="projects.html#mle">
+        <img src="media/shots/tenancymate.jpg" alt="TenancyMate answering a tenancy question with cited sections" loading="lazy">
+        <div><h3>Machine learning</h3><p class="small">RAG with published evals, local LLM services, real-time vision.</p></div>
       </a>
     </div>
-
-    <a class="proto-card rise" href="microduck-lab/" aria-label="Open Microduck Lab, a playable 3D robot duck">
-      <span class="proto-thumb"><img src="media/shots/microduck-lab.jpg" alt="A small robot duck holding a foam cube in its beak on a wooden desk" loading="lazy" width="1280" height="720" /><span class="visitbadge" aria-hidden="true">↗</span></span>
-      <span class="proto-body">
-        <span class="proto-tag">Just for fun · Playable in browser</span>
-        <span class="proto-title">Microduck Lab</span>
-        <span class="proto-text">A whole flock of tiny robot ducks loose in a living room. Drive one, pick up toys with its beak, put it on roller skates, play football on the rug or race the others around the cones, and drag more ducks and toys in from the inventory. Then take one to the garage to swap parts and repaint it.</span>
-        <span class="proto-stack"><span>three.js</span><span>Rapier physics</span><span>Procedural walking</span><span>Flocking AI</span></span>
-        <span class="proto-go">Play it →</span>
-      </span>
-    </a>
-
   </div>
 </section>
 
-<!-- ============================ RESEARCH (closes Act 03) ============================ -->
-<section class="scene" id="research" data-form="hci">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:44vw;height:44vw;left:-12vw;bottom:-8vh;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise">Research — AI Agents × HCI</p>
-    <h2 class="section-title reveal-line"><span>Do AI agents stay<br/>themselves — and does<br/>it earn our trust?</span></h2>
-    <p class="lead rise">Master of Engineering thesis at the HIT Lab NZ, University of Canterbury — supervised by Dr. Susanne Schmidt &amp; Prof. Robert W. Lindeman. The study is about <b>interactive AI agents</b>; VR is simply the controlled environment it runs in.</p>
-
-    <div class="thesis-card rise">
-      <div class="thesis-title">“One Soul, Many Forms: The Impact of Identity Continuity on Rapport, Emotional Connectedness, and Credibility in Virtual Agents.”</div>
-      <p class="thesis-sub">A between-subjects study testing whether an AI agent that keeps a <b>continuous identity</b> — while its embodiment changes across three interaction contexts — builds stronger human relationships than agents that appear as strangers each time.</p>
-      <p class="thesis-sup"><b>Method:</b> ANCOVA · baseline-controlled · validated rapport / connectedness / trust scales</p>
-
-      <div class="stat-row">
-        <div class="stat"><div class="num" data-count="1.22" data-dec="2">0</div><div class="lbl">Cohen's d — large effect on emotional connectedness</div></div>
-        <div class="stat"><div class="num" data-count="26">0</div><div class="lbl">Participants, between-subjects (13 / condition)</div></div>
-        <div class="stat"><div class="num" data-count="3">0</div><div class="lbl">Interaction contexts, one continuous agent</div></div>
-        <div class="stat"><div class="num">4</div><div class="lbl">Multi-modal channels — LLM · VLM · STT · TTS</div></div>
-      </div>
-
-      <div class="tag-row">
-        <span>Agent identity continuity</span><span>Human–agent rapport</span><span>Emotional connectedness</span>
-        <span>Credibility &amp; trust</span><span>Multi-modal agents</span><span>Longitudinal interaction</span>
-        <span class="env">Environment: VR</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============================ SKILLS (Act 03 — What I can do) ============================ -->
-<section class="scene" id="skills" data-form="mle">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:38vw;height:38vw;left:-10vw;top:6vh;"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <div class="act-line rise"><span class="n">03</span><span class="t">What I can do</span></div>
-    <h2 class="section-title reveal-line"><span>One stack,<br/>many layers.</span></h2>
-
-    <div class="skill-grid">
-      <div class="skill-col rise">
-        <h4>AI Engineering</h4>
-        <div class="chips"><span>LLM · VLM</span><span>RAG</span><span>Multi-agent systems</span><span>STT · TTS</span><span>Prompt &amp; agent design</span><span>FastAPI / streaming</span></div>
-      </div>
-      <div class="skill-col rise">
-        <h4>Machine Learning</h4>
-        <div class="chips"><span>XGBoost</span><span>SVR</span><span>Neural Networks</span><span>Computer Vision (YOLO)</span><span>Edge inference</span><span>Time-series / signals</span></div>
-      </div>
-      <div class="skill-col rise">
-        <h4>Software &amp; Infra</h4>
-        <div class="chips"><span>Python</span><span>C#</span><span>Java</span><span>SQL</span><span>Swift</span><span>Docker</span><span>Kubernetes</span><span>Linux</span></div>
-      </div>
-      <div class="skill-col rise">
-        <h4>HCI &amp; Research</h4>
-        <div class="chips"><span>User studies</span><span>ANCOVA / stats</span><span>R</span><span>Unity</span><span>Experiment design</span><span>Human–agent interaction</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============================ CONTACT ============================ -->
-<section class="scene" id="contact" data-form="aie">
-  <div class="layer depth-1" data-depth="1" aria-hidden="true"><div class="glow-blob" style="width:52vw;height:52vw;left:50%;top:28%;transform:translateX(-50%);"></div></div>
-  <div class="wrap depth-4" data-depth="4">
-    <p class="eyebrow rise" style="display:block;text-align:center;">Let's build something</p>
-    <div class="contact-big reveal-line"><span>Say&nbsp;<a href="mailto:richiejyt@gmail.com">hello</a>.</span></div>
-    <div style="margin-top:3rem;"><a class="cv-btn" href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">View CV ↗</a></div>
-    <div class="contact-links rise">
-      <a href="mailto:richiejyt@gmail.com">richiejyt@gmail.com</a>
-      <a href="https://github.com/R1chi33333" target="_blank" rel="noopener">github.com/R1chi33333</a>
-      <a href="tel:+64272922743">+64 027 292 2743</a>
-    </div>
-    <footer>One soul, many forms · Designed &amp; built by Richie Jin · Auckland, NZ</footer>
+<section id="contact" class="contact" aria-labelledby="contact-title">
+  <div class="wrap">
+    <h2 id="contact-title" class="sr-only">Contact</h2>
+    <p class="bubble big">Want to build something playful? <a href="mailto:richiejyt@gmail.com">Say hello.</a></p>
+    <ul class="contact-list">
+      <li><a href="mailto:richiejyt@gmail.com">richiejyt@gmail.com</a></li>
+      <li><a href="https://github.com/R1chi33333" target="_blank" rel="noopener">github.com/R1chi33333</a></li>
+      <li><a href="tel:+64272922743">+64 27 292 2743</a></li>
+      <li><a href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">CV (PDF)</a></li>
+    </ul>
   </div>
 </section>
 
 </main>
 
-<!-- video lightbox -->
-<div id="lightbox" class="lightbox" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Gameplay video">
-  <button class="lb-close" aria-label="Close video">✕</button>
-  <div class="lb-inner">
-    <video id="lbVideo" controls playsinline preload="none"></video>
-    <div class="lb-cap" id="lbCap"></div>
+<footer class="site">
+  <div class="wrap">
+    <span>Designed and built by Richie Jin, Auckland.</span>
+    <span>Microduck robot by Pollen Robotics, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a>, modified; duck images under the same licence. Fonts: Bangers and Atkinson Hyperlegible, OFL.</span>
   </div>
-</div>
+</footer>
 
-<!-- ============================================================
-     SCRIPTS
-     ============================================================ -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<dialog id="lightbox" class="lightbox" aria-labelledby="lightbox-cap">
+  <div class="inner">
+    <form method="dialog"><button class="btn plain close" type="submit">Close</button></form>
+    <video controls playsinline preload="none"></video>
+    <p class="cap" id="lightbox-cap"></p>
+  </div>
+</dialog>
+
 <script src="main.js"></script>
 </body>
 </html>
