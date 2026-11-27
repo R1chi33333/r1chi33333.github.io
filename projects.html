@@ -22,7 +22,7 @@
     <a class="brand" href="index.html">Richie Jin</a>
     <nav aria-label="Main">
       <ul>
-        <li><a href="microduck.html">Microduck</a></li>
+        <li><a href="microduck.html">Microduck Lab</a></li>
         <li><a href="projects.html" aria-current="page">All work</a></li>
         <li><a href="index.html#research">Research</a></li>
         <li><a href="index.html#contact">Contact</a></li>
@@ -36,7 +36,7 @@
   <div class="wrap">
     <p class="caption">All work</p>
     <h1>Every project, in detail</h1>
-    <p class="lead">Games and VR, shipped software and machine learning. Open a screenshot for the live demo, or play a video card to watch the gameplay.</p>
+    <p class="lead">Games and VR, AI agents and shipped software. Open a screenshot for the live demo, or play a video card to watch the gameplay.</p>
   </div>
 </section>
 <section id="games" aria-labelledby="games-title">
@@ -88,13 +88,19 @@
     </div>
   </div>
 </section>
-<section id="swe" aria-labelledby="swe-title">
+<section id="software" aria-labelledby="software-title">
   <div class="wrap">
     <div class="section-head">
-      <h2 id="swe-title">Software</h2>
-      <p class="lead">Tools you can open right now. Five of the seven run live, with automated tests and deployment.</p>
+      <h2 id="software-title">Software and AI</h2>
+      <p class="lead">Tools you can open right now. Six of the seven run live, with automated tests and deployment.</p>
     </div>
     <div class="cards">
+<article class="card">
+<a class="thumb" href="https://tenancymate.vercel.app" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/tenancymate.jpg" alt="" loading="lazy" width="1280" height="720"></a>
+<div class="body"><span class="kind">MLE, RAG, eval-driven, live</span><h3>TenancyMate</h3><p>NZ tenancy law Q&amp;A over the Residential Tenancies Act — every claim cited to its section, zero hallucinated citations across a 47-question published eval.</p>
+<ul class="chips"><li>RAG</li><li>pgvector</li><li>Next.js</li><li>transformers.js</li></ul>
+<div class="links"><a href="https://tenancymate.vercel.app" target="_blank" rel="noopener">Open live demo</a><a href="https://github.com/R1chi33333/tenancymate" target="_blank" rel="noopener">Code on GitHub</a></div>
+</div></article>
 <article class="card">
 <a class="thumb" href="https://nz-netpay.onrender.com" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/nz-netpay.jpg" alt="" loading="lazy" width="1280" height="720"></a>
 <div class="body"><span class="kind">SWE, C# and .NET, live API</span><h3>nz-netpay</h3><p>ASP.NET Core 8 API for NZ take-home pay — PAYE, ACC levy, KiwiSaver and student loan, every rate cited to its official IRD or ACC source. 97% engine test coverage.</p>
@@ -126,52 +132,11 @@
 <div class="links"><a href="https://statusping-production.up.railway.app/status/portfolio" target="_blank" rel="noopener">Open live demo</a><a href="https://github.com/R1chi33333/statusping" target="_blank" rel="noopener">Code on GitHub</a></div>
 </div></article>
 <article class="card">
-<a class="thumb" href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/stock-dashboard.jpg" alt="" loading="lazy" width="1280" height="720"></a>
-<div class="body"><span class="kind">SWE, data, forecasting</span><h3>Stock Dashboard</h3><p>Interactive market analytics — real-time data, 20+ technical indicators, and XGBoost / Random-Forest prediction.</p>
-<ul class="chips"><li>Streamlit</li><li>Plotly</li><li>XGBoost</li></ul>
-<div class="links"><a href="https://github.com/R1chi33333/stock-dashboard" target="_blank" rel="noopener">Code on GitHub</a></div>
-</div></article>
-<article class="card">
 <a class="thumb" href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/smartboard.jpg" alt="" loading="lazy" width="1280" height="720"></a>
 <div class="body"><span class="kind">SWE, full-stack, real-time</span><h3>SmartBoard</h3><p>AI-powered project management — a drag-and-drop Kanban board with real-time WebSocket sync and streaming task descriptions from a local Ollama LLM.</p>
 <ul class="chips"><li>React 18</li><li>FastAPI</li><li>PostgreSQL</li><li>WebSocket</li></ul>
 <div class="links"><a href="https://github.com/R1chi33333/smartboard" target="_blank" rel="noopener">Code on GitHub</a></div>
 </div></article>
-    </div>
-  </div>
-</section>
-<section id="mle" aria-labelledby="mle-title">
-  <div class="wrap">
-    <div class="section-head">
-      <h2 id="mle-title">Machine learning</h2>
-      <p class="lead">Retrieval with a published evaluation set, LLM services that run locally, and real-time computer vision.</p>
-    </div>
-    <div class="cards">
-<article class="card">
-<a class="thumb" href="https://tenancymate.vercel.app" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/tenancymate.jpg" alt="" loading="lazy" width="1280" height="720"></a>
-<div class="body"><span class="kind">MLE, RAG, eval-driven, live</span><h3>TenancyMate</h3><p>NZ tenancy law Q&amp;A over the Residential Tenancies Act — every claim cited to its section, zero hallucinated citations across a 47-question published eval.</p>
-<ul class="chips"><li>RAG</li><li>pgvector</li><li>Next.js</li><li>transformers.js</li></ul>
-<div class="links"><a href="https://tenancymate.vercel.app" target="_blank" rel="noopener">Open live demo</a><a href="https://github.com/R1chi33333/tenancymate" target="_blank" rel="noopener">Code on GitHub</a></div>
-</div></article>
-<article class="card">
-<a class="thumb" href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/rag-chatbot.jpg" alt="" loading="lazy" width="1280" height="720"></a>
-<div class="body"><span class="kind">AI, RAG, local LLM</span><h3>RAG Chatbot</h3><p>Fully local retrieval-augmented chatbot powered by Ollama + ChromaDB, with a FastAPI backend and token streaming.</p>
-<ul class="chips"><li>Ollama</li><li>ChromaDB</li><li>FastAPI</li><li>Streaming</li></ul>
-<div class="links"><a href="https://github.com/R1chi33333/rag-chatbot" target="_blank" rel="noopener">Code on GitHub</a></div>
-</div></article>
-<article class="card">
-<a class="thumb" href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/object-detection.jpg" alt="" loading="lazy" width="1280" height="720"></a>
-<div class="body"><span class="kind">ML, computer vision</span><h3>Real-Time Object Detection</h3><p>YOLOv8n detection API with REST + WebSocket streaming, Apple-MPS acceleration, and a clean web UI.</p>
-<ul class="chips"><li>YOLOv8</li><li>FastAPI</li><li>WebSocket</li><li>MPS</li></ul>
-<div class="links"><a href="https://github.com/R1chi33333/realtime-object-detection" target="_blank" rel="noopener">Code on GitHub</a></div>
-</div></article>
-<article class="card">
-<a class="thumb" href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="media/shots/job-hunter.jpg" alt="" loading="lazy" width="1280" height="720"></a>
-<div class="body"><span class="kind">AI, multi-agent</span><h3>Job Hunter</h3><p>Multi-agent job-hunting automation orchestrated with Claude Code — runs end-to-end with no API key required.</p>
-<ul class="chips"><li>Python</li><li>Multi-agent</li><li>Claude Code</li></ul>
-<div class="links"><a href="https://github.com/R1chi33333/job-hunter" target="_blank" rel="noopener">Code on GitHub</a></div>
-</div></article>
-
     </div>
   </div>
 </section>

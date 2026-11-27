@@ -19,6 +19,16 @@
     }
   });
 
+  /* Hero gameplay loop: paused for people who prefer less motion, with a pause button for everyone. */
+  var hero = document.querySelector(".splash-video video"), toggle = document.querySelector(".video-toggle");
+  if (hero && toggle) {
+    var set = function (paused) { toggle.textContent = paused ? "Play" : "Pause"; toggle.setAttribute("aria-pressed", String(paused)); };
+    if (reduced) { hero.removeAttribute("autoplay"); hero.pause(); set(true); }
+    toggle.addEventListener("click", function () {
+      if (hero.paused) { hero.play().catch(function () {}); set(false); } else { hero.pause(); set(true); }
+    });
+  }
+
   /* Video lightbox for cards with gameplay video. */
   var lb = document.getElementById("lightbox");
   if (!lb || typeof lb.showModal !== "function") return;

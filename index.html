@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Richie Jin — interaction engineer for XR, games and AI agents</title>
-<meta name="description" content="Yutong (Richie) Jin builds playful interactive systems: VR games, AI agents and the prototypes in between. Master of Engineering in Human Interface Technology, Auckland.">
+<title>Richie Jin — Unity and XR developer</title>
+<meta name="description" content="Yutong (Richie) Jin, a Unity and XR developer with an HCI master's from HIT Lab NZ. VR games, AI agents and the prototypes in between. Auckland.">
 <meta name="author" content="Yutong (Richie) Jin">
-<meta property="og:title" content="Richie Jin — interaction engineer for XR, games and AI agents">
+<meta property="og:title" content="Richie Jin — Unity and XR developer">
 <meta property="og:description" content="VR games, AI agents and the prototypes in between. Featured: Microduck Lab, from browser toy to VR game.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://r1chi33333.github.io/media/microduck/cover.jpg">
@@ -22,7 +22,7 @@
     <a class="brand" href="index.html">Richie Jin</a>
     <nav aria-label="Main">
       <ul>
-        <li><a href="microduck.html">Microduck</a></li>
+        <li><a href="microduck.html">Microduck Lab</a></li>
         <li><a href="projects.html">All work</a></li>
         <li><a href="#research">Research</a></li>
         <li><a href="#contact">Contact</a></li>
@@ -40,7 +40,7 @@
       <div class="splash-text">
         <p class="caption">Meanwhile, in Auckland…</p>
         <h1>I build playful worlds you can step inside.</h1>
-        <p class="lead">I'm Richie, a software and ML engineer with an HCI master's from HIT Lab NZ and two years of ML engineering at SIAT. I build VR games, AI agents and the tools behind them, and I care how they feel: comfortable, readable, a bit funny.</p>
+        <p class="lead">I'm Richie, a Unity and XR developer with an HCI master's from HIT Lab NZ. I build VR games and AI agents you can talk to, and I care how they feel: comfortable, readable, a bit funny. Before that, two years of ML engineering at SIAT.</p>
         <div class="btn-row">
           <a class="btn" href="microduck.html">Read the Microduck Lab case study</a>
           <a class="btn plain" href="projects.html">See all work</a>
@@ -51,12 +51,20 @@
           <li>Chinese, English, Korean</li>
         </ul>
       </div>
-      <div class="splash-duck">
-        <p class="bubble">Hi! I'm the duck from Microduck Lab.</p>
-        <picture>
-          <source media="(prefers-reduced-motion: reduce)" srcset="media/microduck/move-dance-still.webp">
-          <img src="media/microduck/move-dance.webp" width="320" height="320" alt="A small robot duck with a white head shell dancing on the spot">
-        </picture>
+      <div class="splash-media">
+        <figure class="frame splash-video">
+          <video autoplay muted loop playsinline preload="metadata" poster="media/microduck/hero-loop.jpg" width="960" height="540" aria-label="Gameplay from Microduck Lab VR: skating down a hallway, football on the rug, the house race and the garden">
+            <source src="media/microduck/hero-loop.mp4" type="video/mp4">
+          </video>
+          <button class="btn plain video-toggle" type="button" aria-pressed="false">Pause</button>
+        </figure>
+        <div class="splash-duck">
+          <p class="bubble">That's me, in VR!</p>
+          <picture>
+            <source media="(prefers-reduced-motion: reduce)" srcset="media/microduck/move-dance-still.webp">
+            <img src="media/microduck/move-dance.webp" width="320" height="320" alt="A small robot duck with a white head shell dancing on the spot">
+          </picture>
+        </div>
       </div>
     </div>
   </div>
@@ -82,41 +90,6 @@
           <button class="btn plain" type="button" data-video="media/microduck/gameplay-720.mp4" data-title="Microduck Lab VR: a three-minute playthrough">Watch 3 min of play</button>
         </div>
       </div>
-    </div>
-  </div>
-</section>
-
-<section aria-labelledby="do-title">
-  <div class="wrap">
-    <div class="section-head">
-      <h2 id="do-title">What I do</h2>
-      <p class="lead">Four kinds of work, often in the same project.</p>
-    </div>
-    <div class="strip">
-      <article class="panel yellow">
-        <img class="role-duck" src="media/microduck/move-skate-still.webp" data-anim="media/microduck/move-skate.webp" width="320" height="320" alt="">
-        <h3>XR and interaction prototyping</h3>
-        <p>I turn ideas into things you can try in a headset or a browser tab, fast. Comfort-first movement, onboarding that teaches by doing, and input that maps cleanly from keyboard to controllers.</p>
-        <ul class="chips"><li>Unity</li><li>OpenXR</li><li>Quest</li><li>three.js</li><li>C#</li><li>TypeScript</li></ul>
-      </article>
-      <article class="panel lav">
-        <img class="role-duck" src="media/microduck/move-look-still.webp" data-anim="media/microduck/move-look.webp" width="320" height="320" alt="">
-        <h3>HCI research</h3>
-        <p>Planning and running controlled user studies, and turning the results into design decisions. My thesis compared AI agents that keep one identity across bodies with agents that don't.</p>
-        <ul class="chips"><li>User studies</li><li>Questionnaires</li><li>Statistics in Python</li></ul>
-      </article>
-      <article class="panel sky">
-        <img class="role-duck" src="media/microduck/move-hop-still.webp" data-anim="media/microduck/move-hop.webp" width="320" height="320" alt="">
-        <h3>Game and VR development</h3>
-        <p>Systems that make a world feel alive: flocking AI, procedural walking, physics toys, mini-games and two-player LAN co-op, playable in a Quest Pro headset.</p>
-        <ul class="chips"><li>Gameplay systems</li><li>Netcode</li><li>Shaders</li></ul>
-      </article>
-      <article class="panel">
-        <img class="role-duck" src="media/microduck/move-bite-still.webp" data-anim="media/microduck/move-bite.webp" width="320" height="320" alt="">
-        <h3>AI agents and ML</h3>
-        <p>Agents that see, listen and talk (LLM, VLM, speech in and out), retrieval with a published eval set, and two years of ML engineering at SIAT on ECG and IMU signals.</p>
-        <ul class="chips"><li>PyTorch</li><li>LightGBM</li><li>LLM / RAG</li><li>FastAPI</li></ul>
-      </article>
     </div>
   </div>
 </section>
@@ -201,20 +174,16 @@
   <div class="wrap">
     <div class="section-head">
       <h2 id="work-title">More work</h2>
-      <p class="lead">Fifteen projects with screenshots, live demos and gameplay video.</p>
+      <p class="lead">Eleven projects with screenshots, live demos and gameplay video.</p>
     </div>
-    <div class="tiles">
+    <div class="tiles two">
       <a class="tile" href="projects.html#hci">
-        <img src="media/oppy.jpg" alt="Oppy, an embodied AI teammate in a VR shooter" loading="lazy">
-        <div><h3>VR and agents</h3><p class="small">Three VR games with an LLM-driven agent, built for my thesis.</p></div>
+        <img src="media/oppy.jpg" alt="Oppy, an embodied AI teammate in a VR shooter" loading="lazy" width="1280" height="720">
+        <div><h3>VR and AI agents</h3><p class="small">Three VR games, each with an AI agent you can talk to, built for my thesis.</p></div>
       </a>
-      <a class="tile" href="projects.html#swe">
-        <img src="media/shots/flatsplit.jpg" alt="FlatSplit settlement view" loading="lazy">
-        <div><h3>Software</h3><p class="small">Seven shipped tools, five of them live, tested and monitored.</p></div>
-      </a>
-      <a class="tile" href="projects.html#mle">
-        <img src="media/shots/tenancymate.jpg" alt="TenancyMate answering a tenancy question with cited sections" loading="lazy">
-        <div><h3>Machine learning</h3><p class="small">RAG with published evals, local LLM services, real-time vision.</p></div>
+      <a class="tile" href="projects.html#software">
+        <img src="media/shots/tenancymate.jpg" alt="TenancyMate answering a tenancy question with cited sections" loading="lazy" width="1280" height="720">
+        <div><h3>Software and AI</h3><p class="small">Seven tools, six of them live: a law Q&amp;A with a published eval set, APIs, data dashboards.</p></div>
       </a>
     </div>
   </div>
