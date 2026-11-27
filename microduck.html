@@ -51,7 +51,7 @@
         <dl class="facts" style="margin:0">
           <dt>My role</dt><dd>Concept, game design, art direction and development</dd>
           <dt>Web</dt><dd>three.js and Rapier physics, no build step</dd>
-          <dt>VR</dt><dd>Unity 6, URP, OpenXR, Meta Quest Pro over Link</dd>
+          <dt>VR</dt><dd>Unity 6, OpenXR, Meta Quest Pro over Link</dd>
           <dt>Status</dt><dd>Web: playable now. VR: preview build.</dd>
         </dl>
       </div>
@@ -61,7 +61,7 @@
         <source src="media/microduck/gameplay-720.mp4" type="video/mp4">
       </video>
     </figure>
-    <p class="small muted" style="margin-top:-.8rem">The VR version, recorded in the editor from the view behind the duck: dressing up, the tutorial, the toy bag, roller skates, the laser dot, the duck's-eye view, football, the race and the garden. Button prompts show what the player pressed.</p>
+    <p class="small muted" style="margin-top:-.8rem">The VR version, recorded on the PC from the view behind the duck (in the headset it runs on Quest Pro over Link): dressing up, the tutorial, the toy bag, roller skates, the laser dot, the duck's-eye view, football, the race and the garden. Button prompts show what the player pressed.</p>
   </div>
 </section>
 
@@ -71,7 +71,8 @@
       <p class="caption">The idea</p>
       <h2 id="idea-title">A living room from 25 cm up</h2>
       <p>Microduck is Pollen Robotics' small open-source walking robot. I wanted to give it a world: a house full of toys and other ducks that wander, follow you, fetch things and sit down for a rest.</p>
-      <p>The browser version lets you drive one duck from above and play with the whole flock. The VR version goes one step further and puts you inside the duck, so the sofa becomes a cliff and a football is the size of your head.</p>
+      <p>The browser version lets you drive one duck and play with the whole flock. The VR version puts you inside the duck, so the sofa becomes a cliff and a football is the size of your head.</p>
+      <p>Constraints: a solo project, a PC with a Quest Pro over Link as the target, and a non-commercial licence on the robot model.</p>
     </div>
     <div class="pair">
       <figure class="frame"><img src="media/microduck/bag.jpg" width="1280" height="720" loading="lazy" alt="The toy bag open in the bedroom: a grid of toys and actions to pick from"></figure>
@@ -80,29 +81,6 @@
   </div>
 </section>
 
-<section aria-labelledby="versions-title">
-  <div class="wrap">
-    <div class="section-head">
-      <p class="caption">Two versions, one duck</p>
-      <h2 id="versions-title">Porting a browser toy to a headset</h2>
-      <p class="lead">The web game is the behaviour reference. The VR port carries over its gameplay and changes what a headset needs changed. The one feature left behind is the web version's X-ray and sensors view.</p>
-    </div>
-    <p class="scroll-hint small muted">Swipe the table sideways to see the VR column.</p>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Web and VR versions compared">
-      <table class="compare">
-        <thead><tr><th scope="col"></th><th scope="col">Web</th><th scope="col">VR</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">You are</th><td>The driver of one duck, and you can take over any other</td><td>The duck. You see it from behind, or through its eyes</td></tr>
-          <tr><th scope="row">Controls</th><td>WASD and mouse, or a touch joystick</td><td>Touch controllers: left stick walks, right trigger opens the beak, a stick click switches view</td></tr>
-          <tr><th scope="row">Camera</th><td>A third-person camera with screen shake and FOV kicks for impact</td><td>No shake, no roll, level horizon. Impacts show up in the world and in sound instead</td></tr>
-          <tr><th scope="row">World</th><td>A whole comic house in the <a href="microduck-lab-preview/">current build</a>; the <a href="microduck-lab/">first build</a> was a single living room</td><td>A cluttered house with a garden, a toy train and a pond</td></tr>
-          <tr><th scope="row">Players</th><td>One player, in a flock of up to 8 ducks (4 on phones)</td><td>One or two (LAN co-op), with up to 12 AI ducks</td></tr>
-          <tr><th scope="row">Code</th><td>About 8,500 lines of JavaScript (current build)</td><td>About 10,000 lines of C# in 9 runtime assemblies, plus 8,000 lines of editor tools</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
 
 <section aria-labelledby="decisions-title">
   <div class="wrap">
@@ -125,10 +103,10 @@
         <h3>Comfort first</h3>
         <ul>
           <li>Code never rolls, shakes or pitches the camera, and the horizon is always level. The web version's camera shake was not ported; that energy went into world effects and sound.</li>
-          <li>Smooth turning made me queasy in testing, so turning snaps in 30° steps, with a short vignette pulse.</li>
+          <li>Smooth turning made me queasy in my own testing, so turning snaps in 30° steps, with a short vignette pulse.</li>
           <li>When your duck falls over, the view stays level while the duck tips.</li>
           <li>Skates are slowed for comfort (about 0.36 m/s, 0.5 when boosting), and seated play is the default.</li>
-          <li>To make you feel small, the whole rig is scaled down, eye separation included. That's what makes a sofa read as a building rather than a big sofa.</li>
+          <li>The whole camera rig is scaled down, eye separation included, so the house is drawn at a duck's scale.</li>
         </ul>
       </div>
       <figure class="frame"><img src="media/microduck/skate.jpg" width="1280" height="720" loading="lazy" alt="Skating down the hallway from behind the duck, horizon level"></figure>
@@ -150,7 +128,7 @@
       <div class="text">
         <h3>A comic look that survives a headset</h3>
         <p>Flat toon bands with shadows that lean violet, thick ink outlines, speech and thought bubbles. On a flat screen that's mostly taste. In VR it is also readability: a toy reads as a toy from across the room.</p>
-        <p>Some of it had to change. Screen-space halftone shimmers in stereo, so the dots now live on the surfaces themselves and fade with distance. Temporal anti-aliasing smears in a headset, so it's gone. The outline pass ports a fix from the web version, where a player reported black bands on Android Firefox.</p>
+        <p>Some of it had to change. Halftone dots drawn over the screen shimmered in stereo, so the dots now sit on the surfaces themselves and fade with distance. One kind of anti-aliasing smeared in the headset, so it's gone. The outline pass ports a fix from the web version, where a player reported black bands on Android Firefox.</p>
       </div>
       <div class="sheets">
         <figure class="frame"><a href="media/microduck/duck-sheet.jpg"><img src="media/microduck/duck-sheet.jpg" width="1200" height="1335" loading="lazy" alt="Design sheet: the duck in four colourways from four angles"></a></figure>
@@ -173,17 +151,38 @@
   </div>
 </section>
 
+<section aria-labelledby="versions-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="caption">Two versions, one duck</p>
+      <h2 id="versions-title">Porting a browser toy to a headset</h2>
+      <p class="lead">The web game came first and is the reference. The VR version keeps its gameplay and changes only what a headset needs changed.</p>
+    </div>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Web and VR versions compared">
+      <table class="compare">
+        <thead><tr><th scope="col"></th><th scope="col">Web</th><th scope="col">VR</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">You are</th><td>The driver of one duck, and you can take over any other</td><td>The duck. You see it from behind, or through its eyes</td></tr>
+          <tr><th scope="row">Controls</th><td>WASD and mouse, or a touch joystick</td><td>Touch controllers: left stick walks, right trigger opens the beak, a stick click switches view</td></tr>
+          <tr><th scope="row">Camera</th><td>A camera behind the duck that shakes and zooms on impacts</td><td>No shake, no roll, level horizon. Impacts show up in the world and in sound instead</td></tr>
+          <tr><th scope="row">Players</th><td>One player, in a flock of up to 8 ducks (4 on phones)</td><td>One or two (LAN co-op), with up to 12 AI ducks</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <section aria-labelledby="tools-title">
   <div class="wrap">
     <div class="section-head">
       <p class="caption">Under the hood</p>
       <h2 id="tools-title">Tools I built to build it</h2>
-      <p class="lead">On a solo project, checking your own work is the slow part, so most of my time-savers became small tools.</p>
+      <p class="lead">On a solo project, checking your own work is the slow part, so I built small tools for it.</p>
     </div>
     <div class="strip">
       <article class="panel yellow">
         <h3>A scripted player</h3>
-        <p>A virtual player that plays the whole game like a person would: it glances around, snaps its turns, reads each card, misses its first bite and shuffles closer. It filmed the gameplay video above, and running it end to end catches tutorial bugs.</p>
+        <p>A script that plays the whole game with human pacing: it glances around, snaps its turns, pauses on each card, misses its first bite and shuffles closer. It filmed the gameplay video above, and running it end to end catches tutorial bugs.</p>
       </article>
       <article class="panel">
         <h3>Remote editor control</h3>
@@ -212,12 +211,6 @@
       <li><button type="button" aria-pressed="false"><img src="media/microduck/move-fallgetup-still.webp" data-anim="media/microduck/move-fallgetup.webp" width="320" height="320" alt="">Fall and get up</button></li>
     </ul>
 
-    <div class="numbers">
-      <div class="stat"><b>21</b><span>Tutorial cards after the mirror</span></div>
-      <div class="stat"><b>9</b><span>Behaviours in each AI duck's brain</span></div>
-      <div class="stat"><b>22</b><span>Swappable parts per duck, in 4 colourways</span></div>
-      <div class="stat"><b>90 fps</b><span>Frame-rate target in the headset</span></div>
-    </div>
   </div>
 </section>
 
@@ -225,8 +218,12 @@
   <div class="wrap chapter">
     <div class="text">
       <p class="caption">What's next</p>
-      <h2 id="next-title">More duck</h2>
-      <p>The VR version is a preview build. On the list: more moves, more co-op games and a public download.</p>
+      <h2 id="next-title">Next for the duck</h2>
+      <ul>
+        <li>A standalone Quest build, so it runs without a PC.</li>
+        <li>A public download of the VR version.</li>
+        <li>More moves and more two-player games.</li>
+      </ul>
       <div class="btn-row">
         <a class="btn" href="microduck-lab-preview/">Play the web version</a>
         <a class="btn plain" href="index.html#contact">Get in touch</a>
