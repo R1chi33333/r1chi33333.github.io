@@ -397,3 +397,29 @@ body:has(dialog[open]) { overflow: hidden; }
   .pipeline .arrows span:first-child { transform: rotate(20deg); }
   .pipeline .arrows span:last-child { transform: rotate(-20deg); }
 }
+
+/* ---------- ROME case study ---------- */
+.rome-hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 2rem; align-items: start; }
+.app-icon { border-radius: 20px; border: var(--line) solid var(--ink); box-shadow: var(--shadow-sm); margin: .2rem 0 1rem; }
+.phone { justify-self: center; width: min(300px, 100%); }
+.phone video { width: 100%; border: 8px solid var(--ink); border-radius: 34px; background: var(--ink); box-shadow: var(--shadow); }
+.phone figcaption { margin-top: .9rem; }
+.screens { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: .9rem; }
+.screens li { text-align: center; font-weight: 700; font-size: .9rem; }
+.screens img { width: 100%; border: 2px solid var(--ink); border-radius: 14px; margin-bottom: .4rem; background: var(--paper); }
+.phone-shot { width: auto; max-height: 420px; margin-inline: auto; }
+.chapter > figure.frame:has(.phone-shot) { background: var(--paper); justify-self: center; padding: .6rem; }
+.pair .frame:has(.phone-shot) { background: var(--paper); padding: .5rem; }
+.mini { width: 100%; border-collapse: collapse; }
+.mini th, .mini td { text-align: left; padding: .55rem .4rem; border-bottom: 2px solid var(--ink); }
+.mini tr:last-child td { border-bottom: 0; }
+.swatch { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--ink); border-radius: 3px; vertical-align: -2px; margin-right: .5rem; }
+@media (max-width: 900px) { .rome-hero { grid-template-columns: 1fr; } .screens { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 520px) { .screens { grid-template-columns: repeat(3, 1fr); } }
+
+.rome-feature { margin-top: 1.6rem; grid-template-columns: 1fr 1.1fr; }
+.rome-shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; align-self: center; text-decoration: none; }
+.rome-shots img { border: var(--line) solid var(--ink); border-radius: 18px; box-shadow: var(--shadow-sm); background: var(--paper); }
+.rome-shots img:nth-child(2) { transform: translateY(-14px); }
+.card .rome-thumb img { aspect-ratio: 16 / 9; object-fit: cover; object-position: 50% 30%; }
+@media (max-width: 900px) { .rome-feature { grid-template-columns: 1fr; } }

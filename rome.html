@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROME: a pet shop app for iOS — Richie Jin</title>
+<meta name="description" content="Case study: ROME, a SwiftUI pet supplies shop for iOS. Interaction decisions on contrast, a hand-built pull to refresh, guest mode, Liquid Glass and the bugs UI tests caught.">
+<meta name="author" content="Yutong (Richie) Jin">
+<meta property="og:title" content="ROME: a pet shop app for iOS">
+<meta property="og:description" content="Interaction decisions in a SwiftUI shop app. A case study by Richie Jin.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://r1chi33333.github.io/media/rome/demo-poster.jpg">
+<link rel="preload" href="fonts/Bangers-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html">Richie Jin</a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="microduck.html">Microduck Lab</a></li>
+        <li><a href="projects.html">All work</a></li>
+        <li><a href="index.html#research">Research</a></li>
+        <li><a href="index.html#contact">Contact</a></li>
+      </ul>
+    </nav>
+    <a class="btn" href="Richie-Jin-CV.pdf" target="_blank" rel="noopener">CV (PDF)</a>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap rome-hero">
+    <div>
+      <p class="caption">Case study</p>
+      <img class="app-icon" src="media/rome/app-icon.png" width="88" height="88" alt="">
+      <h1>ROME</h1>
+      <p class="lead">A pet supplies shop for iOS. Dogs, cats, reptiles, amphibians, birds, fish and small pets, each with only the categories that actually apply to them.</p>
+      <div class="panel" style="margin-top:1.4rem">
+        <dl class="facts" style="margin:0">
+          <dt>My role</dt><dd>Design and development</dd>
+          <dt>Built with</dt><dd>SwiftUI for iOS 26, no third-party libraries</dd>
+          <dt>Status</dt><dd>Every screen is built. Payment, accounts and storage are stubbed on purpose, each behind its own interface.</dd>
+        </dl>
+      </div>
+      <div class="btn-row">
+        <a class="btn" href="https://github.com/R1chi33333/ROME" target="_blank" rel="noopener">Code on GitHub</a>
+        <a class="btn plain" href="projects.html">See all work</a>
+      </div>
+    </div>
+    <figure class="phone">
+      <video controls muted playsinline preload="none" poster="media/rome/demo-poster.jpg" width="442" height="960">
+        <source src="media/rome/demo.mp4" type="video/mp4">
+      </video>
+      <figcaption>A UI test drives the real app: browse as a guest, pull to refresh, add to cart, check out, then the order on the Dynamic Island.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section aria-labelledby="screens-title">
+  <div class="wrap">
+    <h2 id="screens-title" class="sr-only">Screens</h2>
+    <ul class="screens">
+      <li><img src="media/rome/welcome.jpg" width="193" height="420" loading="lazy" alt="Welcome screen with Sign In, Create Account and Browse as guest"><span>Welcome</span></li>
+      <li><img src="media/rome/shop.jpg" width="193" height="420" loading="lazy" alt="Shop tab: search, filter by pet, a featured offer and popular products"><span>Shop</span></li>
+      <li><img src="media/rome/categories.jpg" width="193" height="420" loading="lazy" alt="Categories for cats: food, treats, toys, grooming, health, accessories"><span>Categories</span></li>
+      <li><img src="media/rome/product.jpg" width="193" height="420" loading="lazy" alt="Product page for a feather wand with price, rating and Add to Cart"><span>Product</span></li>
+      <li><img src="media/rome/cart.jpg" width="193" height="420" loading="lazy" alt="Cart with one item, delivery and total, and a black Checkout button"><span>Cart</span></li>
+      <li><img src="media/rome/my-pets.jpg" width="193" height="420" loading="lazy" alt="My Pets: three pets with species, breed and weight"><span>My Pets</span></li>
+      <li><img src="media/rome/guest-gate.jpg" width="193" height="420" loading="lazy" alt="My Pets as a guest: a short explanation and a Sign In button"><span>Guest gate</span></li>
+    </ul>
+  </div>
+</section>
+
+<section aria-labelledby="decisions-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="caption">Design decisions</p>
+      <h2 id="decisions-title">Four decisions, and why</h2>
+    </div>
+
+    <div class="chapter">
+      <div class="text">
+        <h3>The main button is black, not orange</h3>
+        <p>The brand colour is a warm orange. White text on it measured 2.84:1, below the 4.5:1 that accessibility guidelines ask for, so it can't fill a button with a label on it.</p>
+        <p>The rule that came out of it: black fills every primary action, and orange is kept for selected chips, prices, stars and badges, where it carries no small text. Where orange has to hold text, it uses a darker step that passes.</p>
+      </div>
+      <div class="panel flat">
+        <table class="mini">
+          <thead><tr><th scope="col">Text on</th><th scope="col">Contrast</th><th scope="col">Result</th></tr></thead>
+          <tbody>
+            <tr><td><span class="swatch" style="background:#ff6b35"></span>Brand orange</td><td>2.84 : 1</td><td>Fails</td></tr>
+            <tr><td><span class="swatch" style="background:#b8502b"></span>Darker orange</td><td>4.98 : 1</td><td>Passes</td></tr>
+            <tr><td><span class="swatch" style="background:#111113"></span>Ink black</td><td>about 18 : 1</td><td>Passes easily</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chapter flip">
+      <div class="text">
+        <h3>A paw that holds the list down</h3>
+        <p>Pulling to refresh shows a paw that grips the top of the list, holds it open while the shop reloads, then lets go. The built-in control can't do that: it snaps back on its own curve the moment loading ends, so there's no held-open moment for a paw to grip.</p>
+        <p>So the pull is hand-built from ordinary layout. The paw opens its toes first and the list springs back about 110 ms later. Without that small gap it reads as a shove rather than a release.</p>
+      </div>
+      <figure><div class="frame" style="background:#fff"><img src="media/rome/paw-sequence.jpg" width="1374" height="560" loading="lazy" alt="Three moments of pull to refresh: the paw appears, holds the list down, then fades as the list springs back"></div><figcaption>Pull, hold, let go: three frames from the recorded walkthrough.</figcaption></figure>
+    </div>
+
+    <div class="chapter">
+      <div class="text">
+        <h3>Guests can look around</h3>
+        <p>Anyone can browse without an account. An account is only needed to save something: pets, or an order.</p>
+        <p>In code, "guest" is its own state rather than "signed out", which separates two questions: may this person see the app, and do they have an account? A guest who opens My Pets gets a friendly gate instead of an empty list, and signing in from there keeps them on the same screen.</p>
+      </div>
+      <div class="pair">
+        <figure class="frame"><img src="media/rome/my-pets.jpg" width="193" height="420" loading="lazy" alt="My Pets when signed in" class="phone-shot"></figure>
+        <figure class="frame"><img src="media/rome/guest-gate.jpg" width="193" height="420" loading="lazy" alt="My Pets as a guest, asking to sign in" class="phone-shot"></figure>
+      </div>
+    </div>
+
+    <div class="chapter flip">
+      <div class="text">
+        <h3>Glass only on what floats</h3>
+        <p>iOS 26's Liquid Glass goes on the layer that floats above content: the tab bar, the bottom action bars and the toast. It stays off product and pet cards, because glass on content means glass on glass.</p>
+        <p>An ambient background takes its colour from the pet you're browsing. That exposed a bug: product placeholders used the same tint, so products melted into the page. They now sit on an opaque base and read as objects against anything.</p>
+        <p>The order then carries on outside the app, as a Live Activity on the Dynamic Island.</p>
+      </div>
+      <figure class="frame"><img src="media/rome/dynamic-island.jpg" width="420" height="247" loading="lazy" alt="The order's Live Activity in the Dynamic Island, counting down to delivery"></figure>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="tests-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="caption">Found by testing</p>
+      <h2 id="tests-title">What the UI tests caught</h2>
+      <p class="lead">UI tests walk the real app through two journeys, end to end, and take the screenshots on this page. They found four bugs that reading the code didn't.</p>
+    </div>
+    <div class="strip">
+      <article class="panel yellow"><h3>The tab bar ate taps</h3><p>On product and checkout screens, the floating tab bar sat over the Add to Cart bar and swallowed the tap. Each tab now keeps its own navigation, and the bar only shows at a tab's root.</p></article>
+      <article class="panel"><h3>An invisible text field</h3><p>A field hidden by setting its opacity to zero also vanished for VoiceOver and for the tests.</p></article>
+      <article class="panel"><h3>Prices in the wrong currency</h3><p>Under a non-US region setting, prices showed as US$10.50.</p></article>
+      <article class="panel sky"><h3>The name printed twice</h3><p>Every card showed the product name in the placeholder and again underneath. The placeholder already is the name, so the second line went.</p></article>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="scope-title">
+  <div class="wrap chapter">
+    <div class="text">
+      <p class="caption">Scope</p>
+      <h2 id="scope-title">What's stubbed, on purpose</h2>
+      <p>This is a portfolio build. Checkout, validation and the confirmation are complete; only the payment gateway is a stub. Sign-in accepts any details, and data lives in memory. Each of these sits behind one interface, so a real service can be plugged in without touching the screens.</p>
+    </div>
+    <figure class="frame"><img src="media/rome/order-placed.jpg" width="193" height="420" loading="lazy" alt="Order placed confirmation with an order number" class="phone-shot"></figure>
+  </div>
+</section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>Designed and built by Richie Jin, Auckland.</span>
+    <a href="index.html">Back to home</a>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>

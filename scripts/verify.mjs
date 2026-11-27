@@ -6,7 +6,7 @@
 import { chromium } from '@playwright/test';
 
 const BASE = 'http://localhost:8092/';
-const PAGES = ['index.html', 'microduck.html', 'projects.html'];
+const PAGES = ['index.html', 'microduck.html', 'rome.html', 'projects.html'];
 const SIZES = [[1440, 900], [390, 844]];
 let failures = 0;
 const ok = (cond, label) => { console.log(cond ? `  PASS ${label}` : `  FAIL ${label}`); if (!cond) failures++; };
